@@ -32,20 +32,18 @@ data {
   vector<lower=0>[n_lakes] wl_beta;    // lake specific wl beta
   real<lower=0> lbar;                  // global average linf
   real<lower=0> M;                     // Instantaneous natural mortality
-  real<lower=0> Mpow;                  // Lorenzen exponent
-  real<lower=0> vpow;                  // vulnerability parameter (nets)
-  vector[n_ages] v_f_prop;             // term for manipulating fishing vul
+  real<lower=0> theta;                 // Lorenzen exponent
+  real<lower=0> phi;                   // vulnerability parameter (nets)
+  real<lower=0> psi;                   // term for manipulating fishing vul
   vector[2] G_bound;                   // bounds for G
   real<lower=0> get_SSB_obs;           // logical get SSB observed
-  real<lower=0> obs_cv_prior;          // cv of non-kosher penalty
-  real<lower=0> SSB_penalty;           // logical for non-kosher penalty
   matrix[n_lakes, n_years] stock;      // stocking -- not presently used
   real<lower=0> prior_sigma_G;         // sd of G
   int Rinit_ctl;                       // G*R0 (0) or a more complicated form (1)
   int<lower=0> length_Fseq;            // length of Fseq for generated quantities calcs
   vector[length_Fseq] Fseq;            // sequence of values to iterate across for Fmsy
   int<lower=0> rec_model;              // Ricker (0), BH (1)
-  real<lower=0> cr_prior;              // compensation ratio prior (6 or 12)
+  real<lower=0> cr_prior;              // compensation ratio prior 
 }
 transformed data {
   int<lower=0> caa_obs[n_obs];              // rowsums for survey k,t
@@ -67,10 +65,10 @@ transformed data {
   for(k in 1:n_lakes){
     sbr0[k] = 0; //initialize
     for(a in 1:n_ages){
-      v_a[k, a] = ((linf[k]/lbar)*(1 - exp(-vbk[k] * ages[a])))^vpow;          
-      v_f_a[k, a] = ((linf[k]/lbar)*(1 - exp(-vbk[k] * ages[a])))*v_f_prop[a];  
+      v_a[k, a] = ((linf[k]/lbar)*(1 - exp(-vbk[k] * ages[a])))^phi;          
+      v_f_a[k, a] = ((linf[k]/lbar)*(1 - exp(-vbk[k] * ages[a])))^psi;  
       l_a[k, a] = (linf[k]/lbar)*(1 - exp(-vbk[k] * ages[a])); 
-      M_a[k, a] = M/l_a[k, a]^Mpow;
+      M_a[k, a] = M/l_a[k, a]^theta;
       W_a[k, a] = 0.00001*(linf[k]*(1 - exp(-vbk[k] * ages[a])))^wl_beta[k];
       
       if(a < a50[k]){
@@ -134,11 +132,11 @@ transformed parameters {
   vector<lower=0>[n_lakes] sbr0_kick;                // sbr0 report 
   vector[n_lakes] ar_mean_kick;                      // report the ar mean 
   vector<lower=0>[n_lakes] SPR;                      // spawning potential ratio
-  vector<lower=0>[n_lakes] SSB_sum;                  // average ssb survey years
+  vector<lower=0>[n_lakes] SSB_sum;                  // sum ssb survey years
   vector<lower=0>[n_lakes] SSB_bar;                  // average ssb survey years
   vector<lower=0>[n_lakes] SBR;                      // spawning biomass ratio
   vector<lower=0>[n_lakes] counter_SBR;              // hack value for SBR calcs
-  vector<lower=0>[n_lakes] cr;                       // compensation ratio
+  vector<lower=0>[n_lakes] cr;                       // compensation ratio kick out to check math
   
   // calculate sbrf
   for(k in 1:n_lakes){
@@ -156,12 +154,10 @@ transformed parameters {
       }
       sbrf_early[k] += f_a[k,a]*Su_Fearly[k, a]; 
       sbrf_late[k] += f_a[k,a]*Su_Flate[k, a]; 
-      //kick_sbrf[k] = sbrf_early[k]; 
     }
     SPR[k] = sbrf_late[k] / sbr0[k]; 
   }
-  //print(ar_mean_kick); 
-  
+
   // Calculate recruitment b's, Rinit's 
   for(k in 1:n_lakes){
     if(rec_model==0){ //ricker b
@@ -184,7 +180,7 @@ transformed parameters {
     pinit[k] = Rinit[k] / R0[k]; 
   }
 
-  //Set up F(t) fishing rate vector from start year to 2018
+  //Initialize F(t) fishing rate vector from start year to 2018
   for(k in 1:n_lakes){
     for(t in 1:n_years){
       if(t < which_year){
@@ -262,7 +258,7 @@ transformed parameters {
   
   //Calculate the preds vector
   //C(k,a,t)=N(a,t,k)*Nnet(k,t)Paged(k,t)*v_a(k,a) 
-  for(hack in 1:1){  //this is my weeping loop
+  for(hack in 1:1){  //naughty hack to initialize j = 0
     int j = 0; 
     for(i in 1:n_surveys){
       int k_idx = lake[i]; 
@@ -285,23 +281,18 @@ model {
   v[,1] ~ normal(v_prior_early, prior_sigma_v[1]); 
   v[,2] ~ normal(v_prior_late, prior_sigma_v[2]); 
   R0 ~ lognormal(R0_mean, R0_sd); 
-  
   for(k in 1:n_lakes){
     ar[k] ~ normal(ar_mean[k], ar_sd); 
   }
   G ~ normal(0,prior_sigma_G); 
   to_vector(w) ~ normal(prior_mean_w, prior_sigma_w); 
+  
+  //likelihood
   caa_obs ~ poisson(caa_pred); 
+  
   //phi ~ cauchy(0,3);
   //su_stock ~ beta(2,2); 
   //caa_obs ~ neg_binomial_2(caa_pred, phi); 
-  
-  //even more penalties  ¯\_(ツ)_/¯--> SSB_penalty = 0 
-  if(SSB_penalty){
-    for(i in 1:n_surveys){
-      SSB_obs[i] ~ normal(SSB[lake[i],year[i]], obs_cv_prior*SSB_obs[i]); 
-    }
-  }
 }
 generated quantities{
   vector[n_lakes] Fmsy;           // instantaneous fishing mortality @ MSY                
@@ -310,7 +301,7 @@ generated quantities{
   vector[n_lakes] F_early_ratio;  // Fearly / F_msy                        
   vector[n_lakes] b_ratio;        // average ssb survey years / pristine ssb
   
-  //Fmsy[k], MSY[k] subroutine: 
+  //Fmsy[k], MSY[k] subroutine
   for(k in 1:n_lakes){
     Fmsy[k] = 0; 
     MSY[k] = 0; 
@@ -334,13 +325,15 @@ generated quantities{
       Yeq = Req*ypr; //predicted equilibrium yield
       if(Yeq > MSY[k]){
         MSY[k] = Yeq; 
-        Fmsy[k]=Fseq[i] + 0.01*(uniform_rng(0,1)-0.5); //jitter values to make a purdy histogram
+        //jitter values to make a purdy histogram:
+        Fmsy[k]=Fseq[i] + 0.01*(uniform_rng(0,1)-0.5); 
       } else {
-        //Yeq for this F is lower than highest value already found, so can exit the subroutine
+        //Yeq for this F is lower than highest value already found,
+        //so can exit the subroutine
         continue; 
       }
     }
-    //Kobe plot stuff
+    //Kobe plot hogwash
     F_early_ratio[k] = v[k,1] / Fmsy[k];
     F_ratio[k] = v[k,2] / Fmsy[k];
     b_ratio[k] = SSB_bar[k] / R0[k]*sbr0[k]; 
