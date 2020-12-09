@@ -1,5 +1,5 @@
 /*
-*'BERTA unveiling v1
+*'BERTA v1
 *Bayesian Estimation of Recruitment Trends in Alberta
 *Cahill & Walters October 2020
 *k = lake, t = year, a = age, i = survey
@@ -34,10 +34,9 @@ data {
   real<lower=0> M;                     // Instantaneous natural mortality
   real<lower=0> theta;                 // Lorenzen exponent
   real<lower=0> phi;                   // vulnerability parameter (nets)
-  real<lower=0> psi;                   // term for manipulating fishing vul
+  real<lower=0> psi;                   // vulnerability parameter (angling)
   vector[2] G_bound;                   // bounds for G
   real<lower=0> get_SSB_obs;           // logical get SSB observed
-  matrix[n_lakes, n_years] stock;      // stocking -- not presently used
   real<lower=0> prior_sigma_G;         // sd of G
   int Rinit_ctl;                       // G*R0 (0) or a more complicated form (1)
   int<lower=0> length_Fseq;            // length of Fseq for generated quantities calcs
@@ -132,8 +131,7 @@ transformed parameters {
   vector<lower=0>[n_lakes] sbr0_kick;                // sbr0 report 
   vector[n_lakes] ar_mean_kick;                      // report the ar mean 
   vector<lower=0>[n_lakes] SPR;                      // spawning potential ratio
-  vector<lower=0>[n_lakes] SSB_sum;                  // sum ssb survey years
-  vector<lower=0>[n_lakes] SSB_bar;                  // average ssb survey years
+  vector<lower=0>[n_lakes] SSB_bar;                           // average ssb survey years
   vector<lower=0>[n_lakes] SBR;                      // spawning biomass ratio
   vector<lower=0>[n_lakes] counter_SBR;              // hack value for SBR calcs
   vector<lower=0>[n_lakes] cr;                       // compensation ratio kick out to check math
@@ -249,10 +247,10 @@ transformed parameters {
       if(t >= survey_yrs[k, 1] && t <= survey_yrs[k, 2]){
         //Rbar_survey yrs
         counter_SBR[k] = counter_SBR[k] + 1; 
-        SSB_sum[k] += SSB[k, t];
+        SSB_bar[k] += SSB[k, t];
       }
     }
-    SSB_bar[k] = SSB_sum[k] / counter_SBR[k];
+    SSB_bar[k] = SSB_bar[k] / counter_SBR[k];
     SBR[k] = SSB_bar[k] / (R0[k]*sbr0[k]);     
   }
   
