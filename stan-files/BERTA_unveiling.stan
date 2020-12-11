@@ -131,9 +131,9 @@ transformed parameters {
   vector<lower=0>[n_lakes] sbr0_kick;                // sbr0 report 
   vector[n_lakes] ar_mean_kick;                      // report the ar mean 
   vector<lower=0>[n_lakes] SPR;                      // spawning potential ratio
-  vector<lower=0>[n_lakes] SSB_bar;                           // average ssb survey years
+  vector<lower=0>[n_lakes] SSB_bar;                  // average ssb survey years
   vector<lower=0>[n_lakes] SBR;                      // spawning biomass ratio
-  vector<lower=0>[n_lakes] counter_SBR;              // hack value for SBR calcs
+  vector<lower=0>[n_lakes] counter_SSB;              // hack value for SBR calcs
   vector<lower=0>[n_lakes] cr;                       // compensation ratio kick out to check math
   
   // calculate sbrf
@@ -225,8 +225,8 @@ transformed parameters {
     R2[k,2] = Nat_array[1, 2, k];
     
     SSB_bar[k] = 0;
-    counter_SBR[k] = 0; 
-    
+    counter_SSB[k] = 0; 
+
     for(t in 3:n_years){
       if(rec_model==0){//ricker
         Nat_array[1, t, k] = SSB[k, t-2]*exp(ar[k] - br[k]*SSB[k, t-2] + w[k,t-2]);
@@ -246,11 +246,11 @@ transformed parameters {
       //calculate mean SSB across survey years
       if(t >= survey_yrs[k, 1] && t <= survey_yrs[k, 2]){
         //Rbar_survey yrs
-        counter_SBR[k] = counter_SBR[k] + 1; 
+        counter_SSB[k] += 1; 
         SSB_bar[k] += SSB[k, t];
       }
     }
-    SSB_bar[k] = SSB_bar[k] / counter_SBR[k];
+    SSB_bar[k] = SSB_bar[k] / counter_SSB[k];
     SBR[k] = SSB_bar[k] / (R0[k]*sbr0[k]);     
   }
   
@@ -334,7 +334,7 @@ generated quantities{
     //Kobe plot hogwash
     F_early_ratio[k] = v[k,1] / Fmsy[k];
     F_ratio[k] = v[k,2] / Fmsy[k];
-    b_ratio[k] = SSB_bar[k] / R0[k]*sbr0[k]; 
+    b_ratio[k] = SSB_bar[k] / (R0[k]*sbr0[k]);
   }
 }
 

@@ -21,7 +21,10 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
   counter <- 1:2 #run lakes in twos for speed
   which_fit <- 1
 
-  for (i in 1:((length(names) / 2))) {
+  for (i in 1:((length(names) / 2)+1)) {
+    if(i==28){ #accounting to fit last lake (55/2 is not an even number) 
+      counter=c(54,55)
+    }
     cat(
       crayon::green(
         clisymbols::symbol$tick
@@ -29,7 +32,8 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
       fitted = "recruitment model fitted = ", rec_model,
       "  lakes:", names[counter],
       sep = " "
-    )
+      )
+    cat("\n")
     which_lakes <- names[counter]
 
     run_data <- data %>% filter(name %in% which_lakes)
@@ -57,14 +61,16 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
     run_data <- run_data[order(run_data$lake), ]
 
     # Set up the Rbar years
-    rbar_yrs <- run_data %>%
+    suppressMessages(
+    survey_yrs <- run_data %>%
       group_by(lake) %>%
       summarise(
         min_yr = min(year) + length(initial_yr:(t - 1)),
         max_yr = max(year) + length(initial_yr:(t - 1))
       )
-
+    )
     # summarize the life history relationships
+    suppressMessages(
     life_hist <- run_data %>%
       group_by(lake) %>%
       summarize(
@@ -73,7 +79,8 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
         linf = unique(linf),
         wl_beta = unique(beta_wl)
       )
-
+    )
+    browser()
     #--------------------------------
     stan_data <- list(
       n_surveys = nrow(run_data),
@@ -87,7 +94,7 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
       lake = run_data$lake,
       year = run_data$year + length(initial_yr:(t - 1)),
       ages = Ages,
-      survey_yrs = rbar_yrs[, 2:3],
+      survey_yrs = survey_yrs[, 2:3],
       which_year = 1996 - initial_yr + 2, # which integer corresponds to year = 1997
       v_prior_early = 0.3,
       v_prior_late = 0.1,
@@ -120,7 +127,7 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
 
     # Start values
     vk1 <- rep(0.3, length(unique(run_data$lake)))
-    vk2 <- rep(0.1, length(unique(run_data$lake)))
+    vk2 <- rep(0.3, length(unique(run_data$lake)))
     vk <- cbind(vk1, vk2)
     inits <- function() {
       list(
@@ -130,7 +137,7 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
         w = jitter(matrix(0, nrow = stan_data$n_lakes, 
                           ncol = stan_data$n_years - 2), amount=0.1),
         sigma_w = jitter(0.5, amount=0.05), 
-        ar = jitter(rep(0.1, stan_data$n_lakes), amount=0.01)
+        ar = jitter(rep(0.5, stan_data$n_lakes), amount=0.01)
       )
     }
     fit <-
@@ -214,9 +221,11 @@ add_year <- initial_yr - 1
 # load .stan
 m <- rstan::stan_model("stan-files/BERTA_unveiling.stan", verbose = F)
 
-n_iter = 20
-n_chains = 4
+n_iter = 2000
+n_chains = 10
 n_warmup = n_iter/2
+
+data <- data %>% filter(name %in% c("amisk lake", "iosegun lake"))
 
 names <- unique(data$name)
 #--------------------------------------------------------

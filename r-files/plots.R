@@ -1,4 +1,7 @@
 library(tidyverse)
+library(tidybayes)
+library(rgdal)
+#-------------------------
 data <- readRDS("data/BERTA-wide-0-25.rds")
 nrow(data)
 
@@ -95,7 +98,7 @@ bp
 #   width = 6,
 #   height = 5
 # )
-#
+# 
 # ggsave("plots/Fig_2.png",
 #   width = 6,
 #   height = 5,
@@ -214,3 +217,468 @@ data %>%
 #   height = 5,
 #   dpi = 2000
 # )
+
+#----------------------
+# Figure 4: Maps of R0, Flate, Fmsy, 
+# This is some filthy trickery to manipulate 2.3 GB of stan fits
+data <- readRDS("data/BERTA-wide-0-25.rds")
+stan_files <- list.files(path="D:/unveiling_fits/bev_holt/cr6", pattern = ".rds")
+stan_files <- gtools::mixedsort(stan_files) #put .rds files in order
+
+setwd("D:/unveiling_fits/bev_holt/cr6")
+hogzilla_list <- 
+  stan_files %>%
+  purrr::map(function(stan_files){
+    readRDS(stan_files)
+  })
+setwd("C:/Users/Chris_Cahill/Documents/github/unveiling")
+
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R0[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = R0
+    )
+})
+
+out2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(Fmsy[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = Fmsy
+    )
+})
+
+out3 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(sbr0_kick[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = sbr0_kick
+    )
+})
+
+out4 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(v[lake,period]) %>%
+    median_qi() %>%
+    mutate(
+      value = v
+    ) %>%
+    filter(period==2)
+})
+
+#Delete second to last lake, this was because ran lakes in 2's 
+#(i.e., lake in rows 54/55 are the same)
+out <- out[-55,]
+out2 <- out2[-55,]
+out3 <- out3[-55,]
+out4 <- out4[-55,]
+
+#bookkeeping on lake numbers and names
+out$lake <- out2$lake <- out3$lake <-  out4$lake <- 1:55
+out$name <- out2$name <- out3$name <- out4$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+out2 <- left_join(out2, data2, by="name")
+out3 <- left_join(out3, data2, by="name")
+out4 <- left_join(out4, data2, by="name")
+
+#Make some maps
+can1 <- raster::getData("GADM", country = "CAN", level = 1)
+alta <- can1[can1$NAME_1 %in% "Alberta", ]
+
+alta <- spTransform(
+  alta,
+  CRS("+proj=longlat +datum=WGS84")
+)
+alta.fort <- fortify(alta)
+
+names(alta.fort)[1] <- "X_long"
+names(alta.fort)[2] <- "Y_lat"
+
+#----------------------------------
+#R0 map
+R0_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = R0)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(R0)
+  )
+
+R0_map <- R0_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+R0_map <- R0_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+R0_map <- R0_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+R0_map
+
+#----------------------------------
+#Fmsy map
+
+Fmsy_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out2, aes(X_long, Y_lat, fill = Fmsy)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(Fmsy)
+  )
+
+Fmsy_map <- Fmsy_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+Fmsy_map <- Fmsy_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+Fmsy_map <- Fmsy_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+Fmsy_map
+
+#----------------------------------
+#sbro map
+
+sbro_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out3, aes(X_long, Y_lat, fill = sbr0_kick)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(sbro)
+  )
+
+sbro_map <- sbro_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+sbro_map <- sbro_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+sbro_map <- sbro_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+sbro_map
+
+#----------------------------------
+#Flate map
+
+Flate_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out4, aes(X_long, Y_lat, fill = v)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(Flate)
+  )
+
+Flate_map <- Flate_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+Flate_map <- Flate_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+Flate_map <- Flate_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+Flate_map
+
+#-----------------
+#Make a panel of maps:
+
+my_map <- cowplot::plot_grid(R0_map, sbro_map, Fmsy_map, Flate_map,
+                             nrow = 1
+)
+# ggsave("plots/Fig_4.pdf",
+#        width = 7.25,
+#        height = 3
+# )
+# 
+# ggsave("plots/Fig_4.png",
+#        width = 7.25,
+#        height = 3,
+#        dpi = 2000
+# )
+
+#----------------------
+# Province-wide Kobe plot with Flate
+# Figure 5
+
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(b_ratio[lake], F_ratio[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = b_ratio,
+      value = F_ratio
+    )
+})
+
+out <- out[-55,]
+#bookkeeping on lake numbers and names
+out$lake <- 1:55
+out$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+
+p <- out %>%
+ggplot(aes(x = b_ratio, y = F_ratio)) +
+  geom_point(pch = 21, fill="black", size = 1.0) +
+  #geom_text(aes(label=name),hjust=0, vjust=0) + 
+  ggsidekick::theme_sleek() +
+  ylab("Flate / Fmsy") +
+  xlab("Mean survey SSB / SSBo") +
+  scale_x_continuous(breaks = seq(0, 25, 5)) +
+  geom_hline(yintercept = 1, lty = 1, size = 0.75, alpha = 0.25) +
+  geom_vline(xintercept = 0.4, lty = 1, size = 0.75, alpha = 0.25) +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title = element_text(size = 12, colour = "grey30"),
+  )
+
+p <- p + ggrepel::geom_label_repel(aes(label = name),
+                 segment.color = "grey50", 
+                 label.size=NA)
+p
+
+ggsave("plots/alta_Kobe.png",
+       width = 6,
+       height = 5,
+       dpi = 2000
+)
+
+ggsave("plots/alta_Kobe.pdf",
+       width = 6,
+       height = 5
+)
+
+#----------------------------------
+#Flate map
+
+bratio_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = b_ratio)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(Flate)
+  )
+
+bratio_map <- bratio_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+bratio_map <- bratio_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+bratio_map <- bratio_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+bratio_map
+
+#------------------------------------
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R0[lake], sbr0_kick[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = R0,
+      value = sbr0_kick
+    )
+})
+
+out <- out[-55,]
+#bookkeeping on lake numbers and names
+out$lake <- 1:55
+out$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+
+out <- out %>% mutate(SSBo = R0*sbr0_kick)
+
+map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = SSBo)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(SSBo)
+  )
+
+map <- map + 
+  ylab("Latitude") + xlab("Longitude")
+
+map <- map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+map <- map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+map
+
+
+#------------------------------------
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SSB_obs[Nobs]) %>%
+    median_qi() %>%
+    mutate(
+      SSB_obs = SSB_obs,
+      SSB_lower = SSB_obs - 0.20 * SSB_obs,
+      SSB_upper = SSB_obs + 0.20 * SSB_obs
+    )
+})
+
+#Get rid of the repeat years
+out <- out[-(234:236),]
+out$name <- data$name
+out$year <- data$year
+
+out <- out %>% group_by(name) %>%
+  mutate(mean_ssb_c = mean(SSB_obs))
+
+out2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R0[lake], sbr0_kick[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = R0,
+      value = sbr0_kick
+    )
+})
+
+out2 <- out2[-55,]
+#bookkeeping on lake numbers and names
+out2$lake <- 1:55
+out2$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat)
+data2 <- unique(data2)
+
+out2 <- left_join(out2, data2, by="name")
+
+out2 <- out2 %>% mutate(SSBo = R0*sbr0_kick)
+
+out <- left_join(out, out2, by="name")
+
+out <- out %>% mutate(b_ratio = mean_ssb_c / SSBo)
+
+p <- out %>%
+  ggplot(aes(x = b_ratio, y = F_ratio)) +
+  geom_point(pch = 21, fill="black", size = 1.0) +
+  #geom_text(aes(label=name),hjust=0, vjust=0) + 
+  ggsidekick::theme_sleek() +
+  ylab("Flate / Fmsy") +
+  xlab("Mean survey SSB / SSBo") +
+  scale_x_continuous(breaks = seq(0, 25, 5)) +
+  geom_hline(yintercept = 1, lty = 1, size = 0.75, alpha = 0.25) +
+  geom_vline(xintercept = 0.4, lty = 1, size = 0.75, alpha = 0.25) +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title = element_text(size = 12, colour = "grey30"),
+  )
+
+p <- p + ggrepel::geom_label_repel(aes(label = name),
+                                   segment.color = "grey50", 
+                                   label.size=NA)
+p
+
+
+
+
+
+SSB_C_dat$year <- stan_data$year + add_year
+SSB_C_dat$name <- tolower(data$name)
+
+trajectory_dat <- left_join(trajectory_dat, SSB_C_dat, 
+                            by = c("name", "year"))
+
