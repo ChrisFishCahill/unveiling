@@ -80,7 +80,6 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
         wl_beta = unique(beta_wl)
       )
     )
-    browser()
     #--------------------------------
     stan_data <- list(
       n_surveys = nrow(run_data),
@@ -224,8 +223,6 @@ m <- rstan::stan_model("stan-files/BERTA_unveiling.stan", verbose = F)
 n_iter = 2000
 n_chains = 10
 n_warmup = n_iter/2
-
-data <- data %>% filter(name %in% c("amisk lake", "iosegun lake"))
 
 names <- unique(data$name)
 #--------------------------------------------------------
