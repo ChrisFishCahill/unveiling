@@ -245,7 +245,6 @@ transformed parameters {
       R2[k,t] = Nat_array[1, t, k];
       //calculate mean SSB across survey years
       if(t >= survey_yrs[k, 1] && t <= survey_yrs[k, 2]){
-        //Rbar_survey yrs
         counter_SSB[k] += 1; 
         SSB_bar[k] += SSB[k, t];
       }
