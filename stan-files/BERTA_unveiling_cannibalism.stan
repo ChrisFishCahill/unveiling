@@ -1,5 +1,6 @@
 /*
-*'BERTA v2.  Cannibalism
+*'BERTA Cannibalism model
+*Also includes newton-raphson algorithm for Req
 *Bayesian Estimation of Recruitment Trends in Alberta
 *Cahill & Walters October 2020
 *k = lake, t = year, a = age, i = survey
@@ -38,13 +39,13 @@ data {
   vector[2] G_bound;                   // bounds for G
   real<lower=0> get_SSB_obs;           // logical get SSB observed
   real<lower=0> prior_sigma_G;         // sd of G
-  int Rinit_ctl;                       // G*R0 (0) or a more complicated form (1)
   int<lower=0> length_Fseq;            // length of Fseq for generated quantities calcs
   vector[length_Fseq] Fseq;            // sequence of values to iterate across for Fmsy
-  int<lower=0> rec_model;              // Ricker (0), BH (1)
   real<lower=0> cr_prior;              // compensation ratio prior 
   real<lower=0> wcann;                 // wt at cannibalism
   real<lower=0> cpow;                  // cannibalism exponent
+  real<lower=0> Mcann_mean; 
+  real<lower=0> Mcann_sd; 
 }
 transformed data {
   int<lower=0> caa_obs[n_obs];              // rowsums for survey k,t
@@ -177,18 +178,12 @@ transformed parameters {
 
   // Calculate recruitment b's, Rinit's 
   for(k in 1:n_lakes){
-    if(rec_model==2){ //jank bh-ricker cannibal stuff
-      cr[k] = exp(ar[k])*sbr0[k]; 
-      C0[k] = R0[k]*cpro[k]; 
-      canr[k] = Mcann[k] / C0[k]; 
-      ar_pred[k] = cr[k]/sbr0[k]*exp(Mcann[k]);   
-      br[k] = (exp(ar[k])*sbr0[k]-1) / (R0[k]*sbr0[k]);
-    }
-    
-    if(Rinit_ctl == 0){
-      Rinit[k] = G[k]*R0[k]; 
-    }
-    
+    cr[k] = exp(ar[k])*sbr0[k]; 
+    C0[k] = R0[k]*cpro[k]; 
+    canr[k] = Mcann[k] / C0[k]; 
+    ar_pred[k] = cr[k]/sbr0[k]*exp(Mcann[k]);   
+    br[k] = (exp(ar[k])*sbr0[k]-1) / (R0[k]*sbr0[k]);
+    Rinit[k] = G[k]*R0[k]; 
     pinit[k] = Rinit[k] / R0[k]; 
   }
 
@@ -243,9 +238,7 @@ transformed parameters {
     counter_SSB[k] = 0; 
 
     for(t in 3:n_years){
-      if(rec_model==2){//jank bh-ricker cannibal stuff
-        Nat_array[1, t, k] = ar_pred[k]*SSB[k, t-2]*exp(- canr[k]*canB[k,t-2] + w[k,t-2]) / (1 + br[k]*SSB[k, t-2]);  
-      }
+      Nat_array[1, t, k] = ar_pred[k]*SSB[k, t-2]*exp(- canr[k]*canB[k,t-2] + w[k,t-2]) / (1 + br[k]*SSB[k, t-2]);  
       for(a in 2:n_ages){
         Nat_array[a, t, k] = Nat_array[a-1, t-1, k]*exp(-M_a[k, a-1] - v_f_a[k, a-1]*F_mat[k, t-1]);  
         SSB[k, t] += Nat_array[a ,t, k]*f_a[k, a];
@@ -296,7 +289,7 @@ model {
   }
   G ~ normal(0,prior_sigma_G); 
   to_vector(w) ~ normal(prior_mean_w, prior_sigma_w); 
-  Mcann ~ normal(5,5); 
+  Mcann ~ normal(Mcann_mean,Mcann_sd); 
   
   //likelihood
   caa_obs ~ poisson(caa_pred); 
@@ -311,7 +304,7 @@ generated quantities{
   vector[n_lakes] F_ratio;        // Flate / F_msy  
   vector[n_lakes] F_early_ratio;  // Fearly / F_msy                        
   vector[n_lakes] b_ratio;        // average ssb survey years / pristine ssb
-  
+
   //Fmsy[k], MSY[k] subroutine
   for(k in 1:n_lakes){
     Fmsy[k] = 0; 
@@ -321,8 +314,8 @@ generated quantities{
       real ypr = 0; 
       real cpr = 0; 
       real su = 1; 
-      real Req = 2.0; //cannot set Req too low or else newton finds trivial solution 
-      real g_x = 1; 
+      real Req = 3; //cannot set Req too low or else newton finds trivial solution 
+      real g_x = 0.1; 
       real g_prime = 0; 
       real Yeq = 0; 
       real arp = 0; 
@@ -335,8 +328,8 @@ generated quantities{
         su = su*exp(-M_a[k,a] - Fseq[i]*v_f_a[k,a]); 
       }
       
-      //hand code newton algorithm
-      while(fabs(g_x) > 0.001){
+      //hand code jank newton-raphson algorithm
+      while(fabs(g_x) > 0.01){
         g_x = Req - Req*sbrf*exp(arp-canr[k]*Req*cpr)/(1+ br[k]*Req*sbrf); 
         g_prime = 1 - ((sbrf*exp(arp-canr[k]*Req*cpr)) / (1 + br[k]*Req*sbrf)) * (1-canr[k]*Req*cpr - ( br[k]*Req*sbrf)/(1+ br[k]*Req*sbrf)); 
         Req = Req - g_x/g_prime; 
