@@ -178,11 +178,11 @@ transformed parameters {
   // Calculate recruitment b's, Rinit's 
   for(k in 1:n_lakes){
     if(rec_model==2){ //jank bh-ricker cannibal stuff
-    cr[k] = exp(ar[k])*sbr0[k]; 
-    C0[k] = R0[k]*cpro[k]; 
-    canr[k] = Mcann[k] / C0[k]; 
-    ar_pred[k] = cr[k]/sbr0[k]*exp(Mcann[k]);   
-    br[k] = (exp(ar[k])*sbr0[k]-1) / (R0[k]*sbr0[k]);
+      cr[k] = exp(ar[k])*sbr0[k]; 
+      C0[k] = R0[k]*cpro[k]; 
+      canr[k] = Mcann[k] / C0[k]; 
+      ar_pred[k] = cr[k]/sbr0[k]*exp(Mcann[k]);   
+      br[k] = (exp(ar[k])*sbr0[k]-1) / (R0[k]*sbr0[k]);
     }
     
     if(Rinit_ctl == 0){
@@ -296,7 +296,7 @@ model {
   }
   G ~ normal(0,prior_sigma_G); 
   to_vector(w) ~ normal(prior_mean_w, prior_sigma_w); 
-  Mcann ~ normal(5,10); 
+  Mcann ~ normal(5,5); 
   
   //likelihood
   caa_obs ~ poisson(caa_pred); 
@@ -321,7 +321,7 @@ generated quantities{
       real ypr = 0; 
       real cpr = 0; 
       real su = 1; 
-      real Req = 5; //cannot set Req too low or else newton finds trivial solution 
+      real Req = 2.0; //cannot set Req too low or else newton finds trivial solution 
       real g_x = 1; 
       real g_prime = 0; 
       real Yeq = 0; 
