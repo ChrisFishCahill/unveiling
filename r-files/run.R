@@ -227,8 +227,23 @@ n_warmup = n_iter/2
 names <- unique(data$name)
 #--------------------------------------------------------
 #Fit models
-get_fits(rec_model = "bev-holt", cr_prior = 6, 
-         n_iter = n_iter, n_chains = n_chains, 
-         n_warmup = n_warmup, 
-         data=data, stocking=stocking)
+# get_fits(rec_model = "bev-holt", cr_prior = 6, 
+#          n_iter = n_iter, n_chains = n_chains, 
+#          n_warmup = n_warmup, 
+#          data=data, stocking=stocking)
+
+# get_fits(rec_model = "bev-holt", cr_prior = 12, 
+#          n_iter = n_iter, n_chains = n_chains, 
+#          n_warmup = n_warmup, 
+#          data=data, stocking=stocking)
+# 
+# get_fits(rec_model = "ricker", cr_prior = 6,
+#          n_iter = n_iter, n_chains = n_chains,
+#          n_warmup = n_warmup,
+#          data=data, stocking=stocking)
+
+# get_fits(rec_model = "ricker", cr_prior = 12,
+#          n_iter = n_iter, n_chains = n_chains,
+#          n_warmup = n_warmup,
+#          data=data, stocking=stocking)
 
