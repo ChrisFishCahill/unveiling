@@ -279,7 +279,7 @@ model {
   v[,2] ~ normal(v_prior_late, prior_sigma_v[2]); 
   R0 ~ lognormal(R0_mean, R0_sd); 
   for(k in 1:n_lakes){
-    ar[k] ~ normal(ar_mean[k], ar_sd); 
+    ar[k] ~ normal(ar_mean[k], ar_sd);
   }
   G ~ normal(0,prior_sigma_G); 
   to_vector(w) ~ normal(prior_mean_w, prior_sigma_w); 

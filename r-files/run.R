@@ -119,7 +119,7 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
       prior_sigma_G = 1,
       Rinit_ctl = 0,
       length_Fseq = length(seq(from = 0.01, to = 1.0, by = 0.01)),
-      Fseq = seq(from = 0.01, to = 1.0, by = 0.01),
+      Fseq = seq(from = 0.01, to = 1.0, by = 0.001),
       rec_model = ifelse(rec_model == "ricker", 0, 1),
       cr_prior = cr_prior
     )

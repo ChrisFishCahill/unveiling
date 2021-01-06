@@ -225,335 +225,134 @@ data %>%
 # )
 
 #----------------------
-# Figure 4: Maps of R0, Flate, Fmsy, 
-# This is some filthy trickery to manipulate massive stan fits
+# Fearly, Flate plot
+
 out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
   hogzilla_list %>%
-    spread_draws(R0[lake]) %>%
-    median_qi() %>%
-    mutate(
-      value = R0
-    )
-})
-
-out2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
-  hogzilla_list %>%
-    spread_draws(Fmsy[lake]) %>%
-    median_qi() %>%
-    mutate(
-      value = Fmsy
-    )
-})
-
-out3 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
-  hogzilla_list %>%
-    spread_draws(sbr0_kick[lake]) %>%
-    median_qi() %>%
-    mutate(
-      value = sbr0_kick
-    )
-})
-
-out4 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
-  hogzilla_list %>%
     spread_draws(v[lake,period]) %>%
-    median_qi() %>%
+    group_by(lake, period) %>%
     mutate(
-      value = v
+      Flake = v,
+      period = case_when(
+        period == 1 ~ "1982-1996",
+        period == 2 ~ "1997-2018"
+      )
     ) %>%
-    filter(period==2)
-})
-
-out5 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
-  hogzilla_list %>%
-    spread_draws(v[lake,period]) %>%
-    median_qi() %>%
-    mutate(
-      value = v
-    ) %>%
-    filter(period==1)
-})
-
-out6 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
-  hogzilla_list %>%
-    spread_draws(G[lake]) %>%
-    median_qi() %>%
-    mutate(
-      value = G
+    summarise(
+      lwr = quantile(Flake, 0.1),
+      med = quantile(Flake, 0.5),
+      upr = quantile(Flake, 0.9),
+      lwr2 = quantile(Flake, 0.25),
+      upr2 = quantile(Flake, 0.75),
     )
+})
+
+#lakes 54/55 are the same...
+bad_lakes <- 109:110
+out <- out[-bad_lakes,]
+#out$name <- unique(data$name)
+
+my_lakes <- rep(1:55, each=2)
+my_names <- rep(unique(data$name), each=2)
+
+out$lake <- my_lakes
+out$name <- my_names
+
+p <- ggplot(out, aes(y = name, x = med)) +
+  geom_linerange(aes(xmin = lwr, xmax = upr), lwd = 0.4) +
+  geom_linerange(aes(xmin = lwr2, xmax = upr2), lwd = 0.8) +
+  geom_point(aes(colour = period), size = 1.5) +
+  xlab("Instantaneous fishing mortality") +
+  ylab("") +
+  ggsidekick::theme_sleek() +
+  theme(axis.text.x = element_text(size = 8)) +
+  scale_color_manual(values = c("#b2df8a", "#1f78b4")) +
+  scale_x_continuous(breaks = seq(from = -3, to = 3, by = 0.2))
+
+ggsave("plots/fishing_mortality.pdf",
+       width = 6,
+       height = 6
+)
+
+ggsave("plots/fishing_mortality.png",
+       width = 6,
+       height = 6,
+       dpi=2000
+)
+
+#----------------------
+#----------------------
+# multipanel SPR
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SPR[lake])
 })
 
 #bookkeeping on lake numbers and names
 #Delete second to last lake, this was because ran lakes in 2's 
-#(i.e., lake in rows 54/55 are the same)
-out <- out[-55,]
-out2 <- out2[-55,]
-out3 <- out3[-55,]
-out4 <- out4[-55,]
-out5 <- out5[-55,]
-out6 <- out6[-55,]
+#(i.e., lake 54/55 are the same)
+ndraw <- length(unique(out$.draw))
 
-out$lake <- out2$lake <- out3$lake <-  
-  out4$lake <- out5$lake <- out6$lake <- 1:55
-out$name <- out2$name <- out3$name <- 
-  out4$name <- out5$name <-
-  out6$name <- unique(data$name)
+#Get the first and last draw of hogwash lake
+bad_lake_index <- (nrow(out)-ndraw-ndraw+1):(nrow(out)-ndraw)
 
-data2 <- data %>% dplyr::select(name, X_long, Y_lat, Area_Ha, DD5, Mean_Depth, 
-                                X_TTM_c, Y_TTM_c)
-data2 <- unique(data2)
+out <- out[-bad_lake_index,]
 
-out <- left_join(out, data2, by="name")
-out2 <- left_join(out2, data2, by="name")
-out3 <- left_join(out3, data2, by="name")
-out4 <- left_join(out4, data2, by="name")
-out5 <- left_join(out5, data2, by="name")
-out6 <- left_join(out6, data2, by="name")
+my_lakes <- rep(1:55, each=ndraw)
+my_names <- rep(unique(data$name), each=ndraw)
 
-#Let's get mappy
-can1 <- raster::getData("GADM", country = "CAN", level = 1)
-alta <- can1[can1$NAME_1 %in% "Alberta", ]
+out$lake <- my_lakes
+out$name <- my_names
 
-alta <- spTransform(
-  alta,
-  CRS("+proj=longlat +datum=WGS84")
-)
-alta.fort <- fortify(alta)
+out <- out %>% 
+  mutate(pr_sum = ifelse(SPR < 0.4, 1,0)) %>%
+  group_by(name) %>%
+  mutate(pr = format(round(sum(pr_sum) / ndraw,2), nsmall=2) )
 
-names(alta.fort)[1] <- "X_long"
-names(alta.fort)[2] <- "Y_lat"
+out$name2 <- paste("Pr(<0.4):", out$pr, sep=" ")
+out$name2 <- paste(out$name, out$name2, sep=" ")
+out$name2
 
-#----------------------------------
-#R0 map
-R0_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = R0)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.5, 0.35, 0.1, 0),
-    name = bquote(R0)
-  )
-
-R0_map <- R0_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-R0_map <- R0_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
-)
-
-R0_map <- R0_map + ggsidekick::theme_sleek() +
+p <- out %>%
+  ggplot(aes(x=SPR)) + 
+  geom_histogram(binwidth = 0.05, fill = "grey", color = "black") + 
+  scale_x_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.00), 
+                     limits=c(0,1.05)) +
+  facet_wrap(~name2, 
+             scales = "free_y", 
+             labeller = label_wrap_gen(width = 18, multi_line=TRUE))+
+  xlab("Spawner potential ratio") + 
+  ylab("Count") + 
+  geom_vline(xintercept = 0.4, lty = 1, size = 1, alpha = 0.85, 
+             colour="steelblue") +
+  #geom_text(data=labels, aes(label=pr), x = 0.75, y = Inf, hjust = 0, vjust = 1, 
+  #          inherit.aes = FALSE, colour="black", size=3) +
+  ggsidekick::theme_sleek()+
   theme(
-    legend.position="top",
+    legend.position="none", 
     axis.line = element_line(colour = "grey30"),
     axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
+    strip.text.x = element_text(size=8, colour = "grey30"),
     panel.spacing.x = unit(1, "lines"),
     panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-R0_map
-
-#----------------------------------
-#Fmsy map
-
-Fmsy_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out2, aes(X_long, Y_lat, fill = Fmsy)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.5, 0.35, 0.1, 0),
-    name = bquote(Fmsy)
-  )
-
-Fmsy_map <- Fmsy_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-Fmsy_map <- Fmsy_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle=90, size=10),
+    axis.text.y = element_text(size=8)
+  ) 
+p 
+ggsave("plots/SPR.pdf",
+       width = 11,
+       height = 8
 )
 
-Fmsy_map <- Fmsy_map + ggsidekick::theme_sleek() +
-  theme(
-    legend.position="top",
-    axis.line = element_line(colour = "grey30"),
-    axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-    panel.spacing.x = unit(1, "lines"),
-    panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-Fmsy_map
-
-#----------------------------------
-#sbro map
-
-sbro_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out3, aes(X_long, Y_lat, fill = sbr0_kick)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.5, 0.35, 0.1, 0),
-    name = bquote(sbro)
-  )
-
-sbro_map <- sbro_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-sbro_map <- sbro_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+ggsave("plots/SPR.png",
+       width = 11,
+       height = 8, 
+       dpi=2000
 )
-
-sbro_map <- sbro_map + ggsidekick::theme_sleek() +
-  theme(
-    legend.position="top",
-    axis.line = element_line(colour = "grey30"),
-    axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-    panel.spacing.x = unit(1, "lines"),
-    panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-sbro_map
-
-#----------------------------------
-#Flate map
-
-Flate_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out4, aes(X_long, Y_lat, fill = v)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.75, 0.65, 0.25, 0),
-    name = bquote(Flate)
-  )
-
-Flate_map <- Flate_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-Flate_map <- Flate_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
-)
-
-Flate_map <- Flate_map + ggsidekick::theme_sleek() +
-  theme(
-    legend.position="top", 
-    axis.line = element_line(colour = "grey30"),
-    axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-    panel.spacing.x = unit(1, "lines"),
-    panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-Flate_map
-
-#----------------------------------
-#Fearly map
-
-Fearly_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out5, aes(X_long, Y_lat, fill = v)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.75, 0.65, 0.25, 0),
-    name = bquote(Fearly)
-  )
-
-Fearly_map <- Fearly_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-Fearly_map <- Fearly_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
-)
-
-Fearly_map <- Fearly_map + ggsidekick::theme_sleek() +
-  theme(
-    legend.position="top", 
-    axis.line = element_line(colour = "grey30"),
-    axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-    panel.spacing.x = unit(1, "lines"),
-    panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-Fearly_map
-
-#----------------------------------
-#G map
-
-G_map <- ggplot(NULL) +
-  geom_polygon(colour = "black", fill = "white", 
-               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
-  geom_point(pch = 21, size = 1.5, data = out6, aes(X_long, Y_lat, fill = G)) +
-  scale_x_continuous(breaks = c(-120, -115, -110)) +
-  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
-  scale_fill_gradientn(
-    colours = c("darkorange1", "white", "steelblue"),
-    values = c(1, 0.75, 0.5, 0.25, 0),
-    name = bquote(G)
-  )
-
-G_map <- G_map + 
-  ylab("Latitude") + xlab("Longitude")
-
-G_map <- G_map + ggalt::coord_proj(
-  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
-)
-
-G_map <- G_map + ggsidekick::theme_sleek() +
-  theme(
-    legend.position="top", 
-    axis.line = element_line(colour = "grey30"),
-    axis.title = element_text(size = 12, colour = "grey30"),
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-    panel.spacing.x = unit(1, "lines"),
-    panel.spacing.y = unit(0.5, "lines"),
-    panel.border = element_blank()
-  )
-G_map
-
-#-----------------
-
-#Make a panel of maps:
-
-my_map <- cowplot::plot_grid(sbro_map, R0_map, G_map,   
-                             Fearly_map, Flate_map, Fmsy_map,
-                             nrow = 2
-)
-# ggsave("plots/Fig_4.pdf",
-#        width = 6.75,
-#        height = 6
-# )
-# 
-# ggsave("plots/Fig_4.png",
-#        width = 6.75,
-#        height = 6,
-#        dpi = 2000
-# )
 
 #----------------------
 # Province-wide Kobe plot with Flate
-# Figure 5
 
 out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
   hogzilla_list %>%
@@ -668,7 +467,985 @@ my_map <- kp + annotation_custom(
 # )
 
 #------------------------------------
+# Bubble plots for Pigeon, LLB, Winefred, Lac Ste. Anne
+my_names <- c("pigeon lake", "lac la biche", "winefred lake", "lesser slave lake", 
+              "amisk lake", "lac ste. anne", "gods lake", 
+              "baptiste lake", "lake newell")
+sub_dat <- data %>% filter(name %in% my_names)
+yr_dat <- sub_dat$year
+name_dat <- sub_dat$name
+sub_dat <- sub_dat[, c(which(colnames(sub_dat) %in% 2:25))]
+sub_dat$year <- yr_dat
+sub_dat$name <- name_dat
+drop_cols <- c("year", "name")
+sub_dat <- sub_dat %>%
+  pivot_longer(-one_of(drop_cols), names_to = c("age")) %>%
+  mutate(year = year + 1999)
 
+sub_dat$age <- as.integer(sub_dat$age)
+sub_dat$value[sub_dat$value == 0] <- NA
+bp <- ggplot(sub_dat, aes(x = year, y = age, size = value)) +
+  geom_blank() +
+  facet_wrap(~name)
+
+bp <- bp + geom_point(alpha = 0.75, colour = "black") +
+  scale_size(range = c(.5, 5), name = "Number of Fish") +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(breaks = seq(2000, 2018, 1)) +
+  scale_y_continuous(breaks = c(2, 5, 10, 15, 20), limits = c(1, 20)) +
+  expand_limits(x = c(2000, 2018)) +
+  ylab("Age") + xlab("Year") +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(
+      angle = 90, size = 8,
+      hjust = 0.95, vjust = 0.2
+    ),
+    axis.text.y = element_text(size = 8)
+    # legend.text = element_text(size = 1),
+    # legend.key.size = unit(0.25, 'lines'),
+    # legend.direction = "horizontal",
+    # axis.text.x = element_text(angle = 90, size=5.5)
+  )
+bp
+
+#bunch of bookkeeping to add in the mortality rates:
+# out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+#   hogzilla_list %>%
+#     spread_draws(v[lake,period]) %>%
+#     group_by(lake, period) %>%
+#     mutate(
+#       Flake = v,
+#       period = case_when(
+#         period == 1 ~ "1982-1996",
+#         period == 2 ~ "1997-2018"
+#       )
+#     ) %>%
+#     summarise(
+#       lwr = quantile(Flake, 0.1),
+#       med = quantile(Flake, 0.5),
+#       upr = quantile(Flake, 0.9),
+#       lwr2 = quantile(Flake, 0.25),
+#       upr2 = quantile(Flake, 0.75),
+#     )
+# })
+# 
+# #lakes 54/55 are the same...
+# bad_lakes <- 109:110
+# out <- out[-bad_lakes,]
+# #out$name <- unique(data$name)
+# 
+# my_lakes <- rep(1:55, each=2)
+# my_names <- rep(unique(data$name), each=2)
+# 
+# out$lake <- my_lakes
+# out$name <- my_names
+
+my_dat <- out %>% filter(name %in% my_names, 
+                         period=="1982-1996")
+
+my_dat$med <- format(round(my_dat$med, 2), nsmall=2)
+my_dat$med <- paste0("'", my_dat$med, "'")
+my_dat$med <- paste("F[early]:", my_dat$med, sep=" ")
+
+my_dat2 <- out %>% filter(name %in% my_names, 
+                         period=="1997-2018")
+my_dat2$med <- format(round(my_dat2$med, 2), nsmall=2)
+my_dat2$med <- paste0("'", my_dat2$med, "'")
+my_dat2$med <- paste("F[late]:", my_dat2$med, sep=" ")
+
+bp <- bp + geom_text(data=my_dat, aes(label=med),
+                     x = 2001.5, y = 19, 
+                     colour="black", size=2.5, parse=T)
+
+bp <- bp + geom_text(data=my_dat2, aes(label=med),
+                     x = 2001.5, y = 17, 
+                     colour="black", size=2.5, parse=T)
+bp 
+
+ggsave("plots/bubble.pdf",
+  width = 8.5,
+  height = 5
+)
+
+ggsave("plots/bubble.png",
+  width = 8,
+  height = 6,
+  dpi = 2000
+)
+
+#------------------------------------
+#Let's try and plot this emergent recruitment pulse in 2000
+# This is some filthy trickery to manipulate massive stan fits
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    median_qi() %>%
+    mutate(
+      value = R2, 
+      year = year + 1979
+    )
+})
+
+#get rid of second to last lake which was fit twice:
+out <- out[-c(2647:2695),]
+
+my_lakes <- rep(1:55, each=length(1980:2028))
+my_names <- rep(unique(data$name), each=length(1980:2028))
+
+out$lake <- my_lakes
+out$name <- my_names
+
+out <- out %>% 
+  group_by(name) %>%
+  mutate(mean_R2 = mean(R2))
+out$mean_std_R2 = out$R2 - out$mean_R2
+
+which_lakes <- c("amisk lake", "crawling valley reservoir", 
+                 "kinnaird lake", "shiningbank lake", 
+                 "unnamed 4", "baptiste lake", "elinor lake", 
+                 "moose lake", "skeleton lake", "hilda lake", 
+                 "smoke lake", "whitefish lake", "lac la nonne", 
+                 "iosegun lake", "fickle lake", "blackett lake", 
+                 "lac ste. anne", "pigeon lake", "jackson lake", 
+                 "garner lake", "buck lake", "calling lake", 
+                 "gods lake", "kehiwin lake", "lesser slave lake", 
+                 "rock island lake", "sylvan lake", 
+                 "wolf lake 2", "touchwood lake", "long lake 1", 
+                 "christina lake", "unnamed 5")
+
+out$pulse <- ifelse(out$name %in% which_lakes, "yes", "no")
+
+p <- out %>%
+  ggplot(aes(x=year, y=mean_std_R2)) +
+  geom_rect(data = data.frame(name = which_lakes), 
+            aes(xmin = 1997, xmax = 2003, ymin = -Inf, ymax = Inf), 
+            alpha = 0.5, fill="steelblue", inherit.aes = FALSE) + 
+  geom_point(size=0.75) +
+  geom_line() + 
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018), 
+                     limits=c(1980,2018)) +
+  facet_wrap(~name, scales = "free_y", 
+             labeller = label_wrap_gen()) + 
+  ylab("Age 2 Walleye (mean centered)") + 
+  xlab("Year") + 
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size=8, colour = "grey30"),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, size=10),
+    axis.text.y = element_text(size=10)
+  )
+
+ggsave("plots/centered_R2_all_lakes.pdf",
+       width = 11,
+       height = 8
+)
+
+ggsave("plots/centered_R2_all_lakes.png",
+       width = 11,
+       height = 8, 
+       dpi=2000
+)
+
+p <- out %>%
+  filter(name %in% which_lakes) %>%
+  ggplot(aes(x=year, y=mean_std_R2)) +
+  geom_rect(data = data.frame(name = which_lakes), 
+            aes(xmin = 1998, xmax = 2002, ymin = -Inf, ymax = Inf), 
+            alpha = 0.5, fill="steelblue", inherit.aes = FALSE) + 
+  geom_point() +
+  geom_line() + 
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018), 
+                     limits=c(1980,2018)) +
+  facet_wrap(~name, scales = "free_y", 
+             nrow=8,
+             labeller = label_wrap_gen()) + 
+  ylab("Age 2 Walleye (mean centered)") + 
+  xlab("Year") + 
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size=8, colour = "grey30"),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+p
+
+out <- left_join(out, data2, by="name")
+
+pulse_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill=pulse)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) + 
+  scale_fill_manual(values=alpha(c("white", "steelblue"), 0.75))
+
+pulse_map <- pulse_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+pulse_map <- pulse_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+pulse_map <- pulse_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+pulse_map
+
+ggsave("plots/pulse_map.pdf",
+       width = 3,
+       height = 5
+)
+
+my_map <- cowplot::plot_grid(p, pulse_map,
+                             nrow = 1, 
+                             rel_widths = c(0.66,0.33)
+)
+
+ggsave("plots/pulse_map.pdf",
+       width = 15,
+       height = 8
+)
+
+ggsave("plots/pulse_map.png",
+       width = 15,
+       height = 8, 
+       dpi=2000
+)
+
+#------------------------------------
+#Multipanel time trajectory plot, with stocking icons
+
+r2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2, 
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
+
+ssb <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SSB[lake, year]) %>%
+    mutate(
+      value = SSB, 
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(SSB, 0.1),
+      med = quantile(SSB, 0.5),
+      upr = quantile(SSB, 0.9),
+      lwr2 = quantile(SSB, 0.25),
+      upr2 = quantile(SSB, 0.75),
+    )
+})
+
+ssb_c <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SSB_obs[Nobs]) %>%
+    median_qi() %>%
+    mutate(
+      SSB_obs = SSB_obs,
+      SSB_lower = SSB_obs - 0.30 * SSB_obs,
+      SSB_upper = SSB_obs + 0.30 * SSB_obs
+    )
+})
+
+
+#get rid of second to last lake which was fit twice:
+r2 <- r2[-c(2647:2695),]
+ssb <- ssb[-c(2647:2695),]
+
+my_lakes <- rep(1:55, each=length(1980:2028))
+my_names <- rep(unique(data$name), each=length(1980:2028))
+
+r2$lake <- my_lakes
+r2$name <- my_names
+
+ssb$lake <- my_lakes
+ssb$name <- my_names
+
+ssb$which <-"female \nbiomass"
+r2$which <- "recruits"
+
+#deal with ssb_c
+bogus_fit <- 234:236
+ssb_c = ssb_c[-bogus_fit,]
+ssb_c$year <- data$year+1999
+ssb_c$name <- data$name
+
+trajectory_dat <- rbind(ssb, r2)
+
+trajectory_dat <- left_join(trajectory_dat, ssb_c,
+                            by = c("name", "year"))
+
+
+which_lakes <- c("pigeon lake", "lac la biche", "winefred lake", "lesser slave lake", 
+              "amisk lake", "lac ste. anne", "gods lake", 
+              "baptiste lake", "lake newell")
+
+
+trajectory_plot <- trajectory_dat %>%
+  filter(name %in% which_lakes) %>%
+  ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which) )) +
+  geom_line(lwd = 0.5) +
+  geom_ribbon(aes(ymin = lwr2, ymax = upr2),
+              linetype = 0, 
+              alpha = 0.5 
+  ) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr),
+              linetype = 2, lwd = 0.5,
+              alpha = 0.25 
+  ) +
+  scale_fill_manual(values = c("steelblue", "darkorange2"), name="") +  
+  scale_color_manual(values = c("steelblue", "darkorange2"), name="") +
+  xlab("Year") +
+  ylab("Female biomass (kg/ha)") +
+  xlim(1980, 2028) +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2020, 2028)) +
+  ggsidekick::theme_sleek() +
+  geom_point(aes(x = year, y = SSB_obs), size=0.5, colour = "black", 
+             show_guide = FALSE) +
+  geom_linerange(aes(x = year, ymin = SSB_lower, ymax = SSB_upper),
+                 colour = "black") +
+  # geom_point(aes(x = year + 2, y = stock),
+  #            shape = 23, fill = "darkorange2",
+  #            color = "steelblue", size = 3
+  # ) +
+  scale_y_continuous(sec.axis = sec_axis(~ . * 1,
+                                         name = "Age 2 recruits (N/ha)"
+  )) +
+  theme(
+    #legend.position = "none",
+    axis.title.y = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(
+      angle = 90, size = 8,
+      hjust = 0.95, vjust = 0.2
+    ),
+    axis.text.y = element_text(size = 8)
+    # legend.text = element_text(size = 1),
+    # legend.key.size = unit(0.25, 'lines'),
+    # legend.direction = "horizontal",
+    # axis.text.x = element_text(angle = 90, size=5.5)
+  ) + 
+  facet_wrap(~name, ncol=3, scales = "free") 
+
+trajectory_plot 
+
+
+ggsave("plots/trajectory.pdf",
+       width = 8,
+       height = 5
+)
+
+ggsave("plots/trajectory.png",
+       width = 8,
+       height = 5, 
+       dpi=2000
+)
+
+pdf("plots/S3.pdf",
+    width = 8, height = 11
+)
+
+#Now make S3 for all lakes
+for(i in 1:3){
+trajectory_plot <- trajectory_dat %>%
+  filter(!(name %in% which_lakes)) %>%
+  ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which) )) +
+  geom_line(lwd = 0.5) +
+  geom_ribbon(aes(ymin = lwr2, ymax = upr2),
+              linetype = 0, 
+              alpha = 0.5 
+  ) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr),
+              linetype = 2, lwd = 0.5,
+              alpha = 0.25 
+  ) +
+  scale_fill_manual(values = c("steelblue", "darkorange2"), name="") +  
+  scale_color_manual(values = c("steelblue", "darkorange2"), name="") +
+  xlab("Year") +
+  ylab("Female biomass (kg/ha)") +
+  xlim(1980, 2028) +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2020, 2028)) +
+  ggsidekick::theme_sleek() +
+  geom_point(aes(x = year, y = SSB_obs), size=0.5, colour = "black", 
+             show_guide = FALSE) +
+  geom_linerange(aes(x = year, ymin = SSB_lower, ymax = SSB_upper),
+                 colour = "black") +
+  # geom_point(aes(x = year + 2, y = stock),
+  #            shape = 23, fill = "darkorange2",
+  #            color = "steelblue", size = 3
+  # ) +
+  scale_y_continuous(sec.axis = sec_axis(~ . * 1,
+                                         name = "Age 2 recruits (N/ha)"
+  )) +
+  theme(
+    #legend.position = "none",
+    axis.title.y = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(
+      angle = 90, size = 8,
+      hjust = 0.95, vjust = 0.2
+    ),
+    axis.text.y = element_text(size = 8)
+    # legend.text = element_text(size = 1),
+    # legend.key.size = unit(0.25, 'lines'),
+    # legend.direction = "horizontal",
+    # axis.text.x = element_text(angle = 90, size=5.5)
+  ) + 
+  ggforce::facet_wrap_paginate(~name, ncol=3, nrow=6, scales = "free", page=i) 
+print(trajectory_plot)
+}
+dev.off()
+
+#------------------------------------
+#stocking
+stocking <- readRDS("data/stocking_matrix_ha.rds")
+which_lakes <- c("pigeon lake", "buck lake", "lac la biche", "lake newell")
+stocking <- stocking[which(rownames(stocking) %in% which_lakes),]
+colnames(stocking) <- 1980:2018
+stocking <- as.data.frame(stocking)
+stocking$name <- rownames(stocking)
+
+stock_surv <- 0.01
+stocking <- stocking %>% 
+  pivot_longer(cols = !name, names_to = "year", 
+               names_transform = list(year = as.numeric),
+               values_to="stock") %>%
+  mutate(stock = stock*stock_surv) %>%
+  mutate(stock = ifelse(stock==0, NA, stock))
+
+stocking
+
+r2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2, 
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
+
+ssb <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SSB[lake, year]) %>%
+    mutate(
+      value = SSB, 
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(SSB, 0.1),
+      med = quantile(SSB, 0.5),
+      upr = quantile(SSB, 0.9),
+      lwr2 = quantile(SSB, 0.25),
+      upr2 = quantile(SSB, 0.75),
+    )
+})
+
+ssb_c <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SSB_obs[Nobs]) %>%
+    median_qi() %>%
+    mutate(
+      SSB_obs = SSB_obs,
+      SSB_lower = SSB_obs - 0.30 * SSB_obs,
+      SSB_upper = SSB_obs + 0.30 * SSB_obs
+    )
+})
+
+
+#get rid of second to last lake which was fit twice:
+r2 <- r2[-c(2647:2695),]
+ssb <- ssb[-c(2647:2695),]
+
+my_lakes <- rep(1:55, each=length(1980:2028))
+my_names <- rep(unique(data$name), each=length(1980:2028))
+
+r2$lake <- my_lakes
+r2$name <- my_names
+
+ssb$lake <- my_lakes
+ssb$name <- my_names
+
+ssb$which <-"female \nbiomass"
+r2$which <- "recruits"
+
+#deal with ssb_c
+bogus_fit <- 234:236
+ssb_c = ssb_c[-bogus_fit,]
+ssb_c$year <- data$year+1999
+ssb_c$name <- data$name
+
+trajectory_dat <- r2 %>% filter(year <= 2018)
+
+trajectory_dat <- left_join(trajectory_dat, ssb_c,
+                            by = c("name", "year"))
+
+trajectory_dat <- left_join(trajectory_dat, stocking, 
+                            by = c("name", "year"))
+trajectory_dat$name <- factor(trajectory_dat$name,      # Reordering group factor levels
+                         levels = c("lac la biche", "pigeon lake", "lake newell", 
+                                    "buck lake"))
+
+trajectory_plot <- trajectory_dat %>%
+  filter(name %in% which_lakes) %>%
+  ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which) )) +
+  geom_line(lwd=0.75) +
+  #geom_point() + 
+  # geom_ribbon(aes(ymin = lwr2, ymax = upr2),
+  #             linetype = 0, 
+  #             alpha = 0.5 
+  # ) +
+  # geom_ribbon(aes(ymin = lwr, ymax = upr),
+  #             linetype = 2, lwd = 0.5,
+  #             alpha = 0.25 
+  # ) +
+  scale_fill_manual(values = c("black"), name="") +  
+  scale_color_manual(values = c("black"), name="") +
+  xlab("Year") +
+  ylab("Age 2 recruits (N/ha)") +
+  geom_point(aes(x = year + 2, y = stock),
+             shape = 23, fill = "darkorange2",
+             color = "darkorange2", size = 0.75
+  ) +
+  xlim(1980, 2017) +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018)) +
+  ggsidekick::theme_sleek() +
+  # scale_y_continuous(sec.axis = sec_axis(~ . * 1,
+  #                                        name = "Age 2 Recruits (N/ha)"
+  # )) +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(
+      angle = 90, size = 8,
+      hjust = 0.95, vjust = 0.2
+    ),
+    axis.text.y = element_text(size = 8)
+    # legend.text = element_text(size = 1),
+    # legend.key.size = unit(0.25, 'lines'),
+    # legend.direction = "horizontal",
+    # axis.text.x = element_text(angle = 90, size=5.5)
+  ) + 
+  facet_wrap(~name, ncol=2, scales = "free") 
+
+trajectory_plot 
+
+
+ggsave("plots/stocking.pdf",
+       width = 3.75,
+       height = 3.75, 
+)
+
+ggsave("plots/stocking.png",
+       width = 5,
+       height = 4, 
+       dpi=2000
+)
+
+#------------------------------------
+#----------------------
+# Figure 4: Maps of R0, Flate, Fmsy, 
+# This is some filthy trickery to manipulate massive stan fits
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R0[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = R0
+    )
+})
+
+out2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(SPR[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = SPR
+    )
+})
+
+out3 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(sbr0_kick[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = sbr0_kick
+    )
+})
+
+out4 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(v[lake,period]) %>%
+    median_qi() %>%
+    mutate(
+      value = v
+    ) %>%
+    filter(period==2)
+})
+
+out5 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(v[lake,period]) %>%
+    median_qi() %>%
+    mutate(
+      value = v
+    ) %>%
+    filter(period==1)
+})
+
+out6 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(ar[lake]) %>%
+    median_qi() %>%
+    mutate(
+      value = ar
+    )
+})
+
+#bookkeeping on lake numbers and names
+#Delete second to last lake, this was because ran lakes in 2's 
+#(i.e., lake in rows 54/55 are the same)
+out <- out[-55,]
+out2 <- out2[-55,]
+out3 <- out3[-55,]
+out4 <- out4[-55,]
+out5 <- out5[-55,]
+out6 <- out6[-55,]
+
+out$lake <- out2$lake <- out3$lake <-  
+  out4$lake <- out5$lake <- out6$lake <- 1:55
+out$name <- out2$name <- out3$name <- 
+  out4$name <- out5$name <-
+  out6$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat, Area_Ha, DD5, Mean_Depth, 
+                                X_TTM_c, Y_TTM_c)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+out2 <- left_join(out2, data2, by="name")
+out3 <- left_join(out3, data2, by="name")
+out4 <- left_join(out4, data2, by="name")
+out5 <- left_join(out5, data2, by="name")
+out6 <- left_join(out6, data2, by="name")
+
+#Let's get mappy
+can1 <- raster::getData("GADM", country = "CAN", level = 1)
+alta <- can1[can1$NAME_1 %in% "Alberta", ]
+
+alta <- spTransform(
+  alta,
+  CRS("+proj=longlat +datum=WGS84")
+)
+alta.fort <- fortify(alta)
+
+names(alta.fort)[1] <- "X_long"
+names(alta.fort)[2] <- "Y_lat"
+
+#----------------------------------
+#R0 map
+R0_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = R0)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(R0)
+  )
+
+R0_map <- R0_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+R0_map <- R0_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+R0_map <- R0_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+R0_map
+
+#----------------------------------
+#SPR map
+
+SPR_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out2, aes(X_long, Y_lat, fill = SPR)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(SPR)
+  )
+
+SPR_map <- SPR_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+SPR_map <- SPR_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+SPR_map <- SPR_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+SPR_map
+
+#----------------------------------
+#sbro map
+
+sbro_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out3, aes(X_long, Y_lat, fill = sbr0_kick)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.1, 0),
+    name = bquote(sbro)
+  )
+
+sbro_map <- sbro_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+sbro_map <- sbro_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+sbro_map <- sbro_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+sbro_map
+
+#----------------------------------
+#Flate map
+
+Flate_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out4, aes(X_long, Y_lat, fill = v)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.75, 0.65, 0.25, 0),
+    name = bquote(Flate)
+  )
+
+Flate_map <- Flate_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+Flate_map <- Flate_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+Flate_map <- Flate_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+Flate_map
+
+#----------------------------------
+#Fearly map
+
+Fearly_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out5, aes(X_long, Y_lat, fill = v)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.75, 0.65, 0.25, 0),
+    name = bquote(Fearly)
+  )
+
+Fearly_map <- Fearly_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+Fearly_map <- Fearly_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+Fearly_map <- Fearly_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+Fearly_map
+
+#----------------------------------
+#G map
+
+ar_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out6, aes(X_long, Y_lat, fill = ar)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.75, 0.5, 0.25, 0),
+    name = bquote(ar)
+  )
+
+ar_map <- ar_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+ar_map <- ar_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+ar_map <- ar_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+ar_map
+
+#-----------------
+#carrying capacity map
+out$ssbo <- out$R0*out3$sbr0_kick
+
+K_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = ssbo)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.15, 0.1, 0),
+    name = bquote(SSBo)
+  )
+
+K_map <- K_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+K_map <- K_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+K_map <- K_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+K_map
+
+#-----------------
+#Make a panel of maps:
+
+my_map <- cowplot::plot_grid(R0_map, sbro_map, K_map,   
+                             ar_map, Fearly_map, Flate_map, 
+                             SPR_map, 
+                             nrow = 3
+)
+ggsave("plots/S4.pdf",
+       width = 6.75,
+       height = 9
+)
+
+ggsave("plots/S4.png",
+       width = 6.75,
+       height = 9,
+       dpi = 2000
+)
+
+
+#-----------------
+#Look for spatial correlation trickery
 #put distance in km
 out2[,c("Y_TTM_c","X_TTM_c")] <- out2[,c("Y_TTM_c","X_TTM_c")] / 1000 
 
@@ -676,7 +1453,7 @@ Loc <- unique(out2[,c("Y_TTM_c","X_TTM_c")])
 my_data <- data.frame(Fmsy = out2$Fmsy, Loc)
 coordinates(my_data)= ~X_TTM_c + Y_TTM_c
 
-my_variogram <- variogram(Fmsy~1, data=my_data)
+my_variogram <- variogram(Fmsy~1, data=my_data, alpha=c(0,45,90,135))
 plot(my_variogram)
 my_variogram #np=#points, dist=avg distance for that lag, gamma=mean for lag
 
@@ -686,6 +1463,8 @@ plot(my_variogram, model=my_vario_model)
 
 my_vario_fit <- fit.variogram(my_variogram, model=my_vario_model)
 plot(my_variogram, model=my_vario_fit)
+my_vario_fit
+
 
 summary(my_vario_fit)
 
@@ -715,3 +1494,248 @@ ggplot(aes(x=X_TTM_c, y=Fmsy)) + geom_point()
 out2 %>%
 ggplot(aes(x=Y_TTM_c, y=Fmsy)) + geom_point()
 
+#
+#----------------------------------
+#Time series clustering analysis
+out <- out %>% filter(year <= 2018) %>%
+  filter(name != "lac bellevue") %>%
+  filter(name != "sturgeon lake") %>%
+  select(year, R2, name)
+
+my_data <- out %>% spread(name, R2)
+
+my_data <- as.matrix(my_data)
+rownames(my_data) <- my_data[,"year"]
+my_data <- my_data[,-1]
+
+df2 <- data.frame(t(my_data))
+
+tree <- hclust(dist(df2))
+
+out_wide <- out %>% pivot_wider(names_from=year, values_from=R2) %>%
+  mutate_at(vars(-name), as.numeric) %>% ungroup()
+
+wss <- map_dbl(1:5, ~{kmeans(select(out_wide, -name), ., nstart=50,iter.max = 15 )$tot.withinss})
+n_clust <- 1:5
+elbow_df <- as.data.frame(cbind("n_clust" = n_clust, "wss" = wss))
+ggplot(elbow_df) +
+  geom_line(aes(y = wss, x = n_clust), colour = "#82518c") +
+  ggsidekick::theme_sleek()
+
+clusters <- kmeans(select(out_wide, -name), centers=2)
+
+centers <- rownames_to_column(as.data.frame(clusters$centers), "cluster")
+
+out_wide <- out_wide %>%
+  mutate(cluster=clusters$cluster)
+
+out_long <- out_wide %>%
+  pivot_longer(cols=c(-name, -cluster), names_to = "year", values_to="R2")
+
+centers_long <- centers %>%
+  pivot_longer(cols = -cluster, names_to = "year", values_to = "R2") 
+
+p <- ggplot() +
+  geom_line(data = out_long, aes(y = R2, x = as.numeric(year), group = name), colour = "steelblue") +
+  facet_wrap(~cluster, ncol = 1) + 
+  geom_line(data = centers_long, aes(y = R2, x = as.numeric(year), group = cluster), col = "darkorange2", size = 2) +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018), 
+                     limits=c(1980,2018)) +
+  xlab("Year") + ylab("Age 2 Walleye") + 
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size=8, colour = "grey30"),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, size=10),
+    axis.text.y = element_text(size=10)
+  ) +
+  geom_vline(xintercept=2000)
+
+p <- p + geom_vline(xintercept = 1993) +
+  geom_vline(xintercept = 2008)+
+  geom_vline(xintercept = 2014)
+
+ggsave("plots/clusters_noweirdlakesv3.pdf",
+       width = 4,
+       height = 7
+)
+
+unique(out_long[which(out_long$cluster==2),"name"])
+
+df2$gp <- cutree(tree, k=25)
+
+
+install.packages("rsoi")
+library(rsoi)
+
+soi <- download_soi()
+soi
+
+soi <- soi %>% filter(Year >= 1980) %>%
+  filter(Year <=2018) 
+
+soi <- soi %>%
+  ggplot(aes(x=Date, y=SOI_3MON_AVG)) + 
+  geom_point() + 
+  geom_line() +
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+
+enso <- download_enso(climate_idx = 'npgo')
+enso <- enso %>% filter(Year >= 1980) %>%
+  filter(Year <=2018) 
+
+enso <- enso %>%
+  ggplot(aes(x=Date, y=NPGO)) + 
+  geom_point() + 
+  geom_line() +
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+
+oni <- download_enso(climate_idx = 'oni')
+oni <- oni %>% filter(Year >= 1980) %>%
+  filter(Year <=2018) 
+
+oni <- oni %>%
+  ggplot(aes(x=Date, y=ONI)) + 
+  geom_point() + 
+  geom_line() +
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+
+npgo <- download_enso(climate_idx = 'npgo')
+npgo <- npgo %>% filter(Year >= 1980) %>%
+  filter(Year <=2018) 
+
+npgo <- npgo %>%
+  ggplot(aes(x=Date, y=NPGO)) + 
+  geom_point() + 
+  geom_line() +
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+
+pdo <- download_pdo()
+pdo <- pdo %>% filter(Year >= 1980) %>%
+  filter(Year <=2018) 
+
+pdo <- pdo %>%
+  ggplot(aes(x=Date, y=PDO)) + 
+  geom_point() + 
+  geom_line() +
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+  
+climate <- cowplot::plot_grid(soi, oni, enso, npgo, pdo,
+                             ncol = 1
+)
+
+climate
+
+ggsave("plots/climate.pdf",
+       width = 8,
+       height = 11
+)
+
+
+
+  select(Month="Jan")
+
+
+summary(tree)
+plot(tree)
+
+df2 <- df2 %>%
+  mutate(name=rownames(.)) %>%
+  select(name, gp)
+
+df3 <- left_join(out, df2)
+
+ggplot(df3, aes(as.numeric(year), R2, colour=name)) + 
+  geom_line() + 
+  facet_wrap(~gp) + 
+  guides(colour=FALSE) 
+  
+
+
+
+
+df <- t(my_data)
+
+tree <- hclust(dist(df))
+plot(tree)
+my_data$gp <- cutree(tree,k=3)
+
+
+##################################################
+
+bumpers <- c("buck lake", "calling lake", 
+             "christina lake", "ioesegun lake", 
+             "pigeon lake", "seibert lake", 
+             "smoke lake", "spencer lake", 
+             "sylvan lake")
+
+out %>% filter(name %in% bumpers)
+
+out$which <- ifelse(out$name %in% bumpers, "bump", "ugly")
+
+out %>% 
+  ggplot(aes(x=which, y=Area_Ha)) + 
+  geom_boxplot()
+
+out %>% 
+  ggplot(aes(x=which, y=Mean_Depth)) + 
+  geom_boxplot()
+
+new_dat <- read.csv("C:/Users/Chris_Cahill/Desktop/pigeon_water.csv")
+
+new_dat$Date <- as.Date(new_dat$Date)
+
+p <- new_dat %>%
+  ggplot(aes(x=Date, y=RelativeElevation )) + 
+  geom_point() + 
+  geom_line() +
+  ylim(849, 851) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-01-01")), linetype=4) + 
+  geom_vline(xintercept=as.numeric(as.Date("1998-12-01")), linetype=4) + 
+  #geom_vline(xintercept=as.numeric(as.Date("1991-01-01")), linetype=4) +
+  #geom_vline(xintercept=as.numeric(as.Date("1991-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2006-12-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
+  geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
+p
