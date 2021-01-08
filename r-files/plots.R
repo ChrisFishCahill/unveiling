@@ -417,6 +417,18 @@ kp
 # )
 
 #Can we make a spatial Kobe plot? 
+can1 <- raster::getData("GADM", country = "CAN", level = 1)
+alta <- can1[can1$NAME_1 %in% "Alberta", ]
+
+alta <- spTransform(
+  alta,
+  CRS("+proj=longlat +datum=WGS84")
+)
+alta.fort <- fortify(alta)
+
+names(alta.fort)[1] <- "X_long"
+names(alta.fort)[2] <- "Y_lat"
+
 out <- out %>% mutate(colour = ifelse(b_ratio <= 0.4 & F_ratio <= 1.0, "goldenrod2", 
                                ifelse(b_ratio >= 0.4 & F_ratio >= 1.0, "goldenrod2",
                                ifelse(b_ratio <= 0.4 & F_ratio >= 1.0, "firebrick",
@@ -462,7 +474,7 @@ my_map <- kp + annotation_custom(
 # 
 # ggsave("plots/spatial_kobe.png",
 #        width = 8,
-#        height = 8, 
+#        height = 8,
 #        dpi=2000
 # )
 
@@ -1245,7 +1257,7 @@ ggsave("plots/egg_sensitivity.png",
 
 ggsave("plots/egg_sensitivity.pdf",
        width = 8,
-       height = 6
+       height = 6.25
 )
 
 #------------------------------------
