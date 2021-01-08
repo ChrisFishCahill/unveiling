@@ -1212,8 +1212,10 @@ my_dat$name <- factor(my_dat$name,  # Reordering group factor levels
 )
 
 my_dat$label_parsed <- factor(my_dat$label_parsed,  # Reordering group factor levels
-                      levels = c("Beverton-Holt~phi==6", "Beverton-Holt~phi==12", 
-                                 "Ricker~phi==6", "Ricker~phi==12")
+                      levels = c("Beverton-Holt~phi==6",  
+                                 "Ricker~phi==6", 
+                                 "Beverton-Holt~phi==12",
+                                 "Ricker~phi==12")
 )
 
 
@@ -1244,7 +1246,7 @@ egglette <- my_dat %>%
     axis.title = element_text(size = 12, colour = "grey30"),
     panel.spacing = unit(1.0, "lines")
   ) +
-  facet_grid(vars(label_parsed), vars(name),
+  facet_grid(vars(name), vars(label_parsed), 
              scales = "free", labeller = label_parsed)
 
 egglette 
