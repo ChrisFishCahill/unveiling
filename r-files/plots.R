@@ -387,7 +387,7 @@ ggplot(aes(x = b_ratio, y = F_ratio)) +
   geom_point(pch = 21, fill="black", size = 1.0) +
   #geom_text(aes(label=name),hjust=0, vjust=0) + 
   ggsidekick::theme_sleek() +
-  ylab("Flate / Fmsy") +
+  ylab(expression(F[late]/F[msy])) +
   xlab("Mean survey SSB / SSBo") +
   scale_x_continuous(breaks = seq(0, 3, .5)) +
   geom_hline(yintercept = 1, lty = 1, size = 0.75, alpha = 0.25) +
@@ -732,7 +732,7 @@ ggsave("plots/pulse_map.png",
 )
 
 #------------------------------------
-#Multipanel time trajectory plot, with stocking icons
+#Multipanel time trajectory plot
 
 r2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
   hogzilla_list %>%
@@ -1077,6 +1077,175 @@ ggsave("plots/stocking.png",
        width = 5,
        height = 4, 
        dpi=2000
+)
+#------------------------------------
+#------------------------------------
+#egg sensitivity plot
+#data <- readRDS("data/BERTA-wide-0-25.rds")
+stan_files <- list.files(path="D:/unveiling_fits/bev_holt/cr6", pattern = ".rds")
+stan_files <- gtools::mixedsort(stan_files) #put .rds files in order
+
+setwd("D:/unveiling_fits/bev_holt/cr6")
+hogzilla_list <- 
+  stan_files %>%
+  purrr::map(function(stan_files){
+    readRDS(stan_files)
+  })
+
+setwd("D:/unveiling_fits/bev_holt/cr12")
+stan_files <- list.files(path="D:/unveiling_fits/bev_holt/cr12", pattern = ".rds")
+stan_files <- gtools::mixedsort(stan_files) 
+
+hogzilla_list2 <- 
+  stan_files %>%
+  purrr::map(function(stan_files){
+    readRDS(stan_files)
+  })
+
+setwd("D:/unveiling_fits/ricker/cr6")
+stan_files <- list.files(path="D:/unveiling_fits/ricker/cr6", pattern = ".rds")
+stan_files <- gtools::mixedsort(stan_files) 
+
+hogzilla_list3 <- 
+  stan_files %>%
+  purrr::map(function(stan_files){
+    readRDS(stan_files)
+  })
+
+setwd("D:/unveiling_fits/ricker/cr12")
+stan_files <- list.files(path="D:/unveiling_fits/ricker/cr12", pattern = ".rds")
+stan_files <- gtools::mixedsort(stan_files) 
+
+hogzilla_list4 <- 
+  stan_files %>%
+  purrr::map(function(stan_files){
+    readRDS(stan_files)
+  })
+
+setwd("C:/Users/Chris_Cahill/Documents/github/unveiling")
+
+bh6 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(b_ratio[lake], F_ratio[lake])
+})
+
+bh12 <- hogzilla_list2 %>% map_dfr(function(hogzilla_list2){
+  hogzilla_list2 %>%
+    spread_draws(b_ratio[lake], F_ratio[lake])
+})
+
+ricker6 <- hogzilla_list3 %>% map_dfr(function(hogzilla_list3){
+  hogzilla_list3 %>%
+    spread_draws(b_ratio[lake], F_ratio[lake])
+})
+
+ricker12 <- hogzilla_list4 %>% map_dfr(function(hogzilla_list4){
+  hogzilla_list4 %>%
+    spread_draws(b_ratio[lake], F_ratio[lake])
+})
+
+#bookkeeping on lake numbers and names
+#Delete second to last lake, this was because ran lakes in 2's 
+#(i.e., lake 54/55 are the same)
+ndraw <- length(unique(bh6$.draw))
+
+#Get the first and last draw of hogwash lake
+bad_lake_index <- (nrow(bh6)-ndraw-ndraw+1):(nrow(bh6)-ndraw)
+
+bh6 <- bh6[-bad_lake_index,]
+bh12 <- bh12[-bad_lake_index,]
+ricker6 <- ricker6[-bad_lake_index,]
+ricker12 <- ricker12[-bad_lake_index,]
+
+my_lakes <- rep(1:55, each=ndraw)
+my_names <- rep(unique(data$name), each=ndraw)
+
+bh6$lake <- bh12$lake <- ricker6$lake <- ricker12$lake <- my_lakes
+bh6$name <- bh12$name <- ricker6$name <- ricker12$name <- my_names
+
+bh6$label_parsed <- "Beverton-Holt~phi==6"
+bh12$label_parsed <- "Beverton-Holt~phi==12"
+ricker6$label_parsed <- "Ricker~phi==6"
+ricker12$label_parsed <- "Ricker~phi==12"
+bh6$level <- factor("bh6")
+bh12$level <- factor("bh12")
+ricker6$level <- factor("ricker6")
+ricker12$level <- factor("ricker12")
+
+#Egg function
+getLevel <- function(x, y, prob = 0.95) {
+  kk <- MASS::kde2d(x, y)
+  dx <- diff(kk$x[1:2])
+  dy <- diff(kk$y[1:2])
+  sz <- sort(kk$z)
+  c1 <- cumsum(sz) * dx * dy
+  approx(c1, sz, xout = 1 - prob)$y
+}
+
+all_runs <- rbind(bh6, bh12, ricker6, ricker12)
+
+# egglette
+lake_name = c("pigeon lake", "lac ste. anne", "lac la biche", "lake newell")
+my_dat <- all_runs %>%
+  filter(name == lake_name) %>%
+  group_by(name, level) %>%
+  mutate(L90 = getLevel(b_ratio, F_ratio, prob = 0.90), 
+         L75 = getLevel(b_ratio, F_ratio, prob=0.75), 
+         L50 = getLevel(b_ratio, F_ratio, prob=0.5) ) %>%
+  mutate(name = str_replace_all(name, " ", "~"))
+
+my_dat$name <- factor(my_dat$name,  # Reordering group factor levels
+                      levels = c("pigeon~lake", "lac~ste.~anne", 
+                                 "lac~la~biche", "lake~newell")
+)
+
+my_dat$label_parsed <- factor(my_dat$label_parsed,  # Reordering group factor levels
+                      levels = c("Beverton-Holt~phi==6", "Beverton-Holt~phi==12", 
+                                 "Ricker~phi==6", "Ricker~phi==12")
+)
+
+
+egglette <- my_dat %>%
+  ggplot(aes(x = b_ratio, y = F_ratio)) +
+  #xlim(0, 5.0) +
+  #ylim(0, ymax) +
+  # stat_density2d(colour="darkorange2",breaks=L75, size=1.2)+
+
+  stat_density2d(
+    colour = "darkorange2", geom = "polygon", breaks = L50,
+    fill = "darkorange2", size = 0.75
+  ) +
+  stat_density2d(
+    colour = "gray", contour = T, geom = "polygon",
+    fill = "snow", alpha = 0, breaks = L90, size = 0.75
+  )  + 
+  geom_point(pch = 16, size = 0.01, alpha = 0.15) +
+  ggsidekick::theme_sleek() +
+  ylab(expression(F[late]/F[msy])) +
+  xlab("Mean survey SSB / SSBo") +
+  #scale_x_continuous(breaks = seq(0, 5, .5)) +
+  geom_hline(yintercept = 1, lty = 1, size = 0.75, alpha = 0.25) +
+  geom_vline(xintercept = 0.4, lty = 1, size = 0.75, alpha = 0.25) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    panel.spacing = unit(1.0, "lines")
+  ) +
+  facet_grid(vars(label_parsed), vars(name),
+             scales = "free", labeller = label_parsed)
+
+egglette 
+
+ggsave("plots/egg_sensitivity.png",
+       width = 8,
+       height = 6,
+       dpi = 2000
+)
+
+ggsave("plots/egg_sensitivity.pdf",
+       width = 8,
+       height = 6
 )
 
 #------------------------------------
