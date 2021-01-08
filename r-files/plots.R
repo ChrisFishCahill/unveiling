@@ -1246,7 +1246,7 @@ egglette <- my_dat %>%
     axis.title = element_text(size = 12, colour = "grey30"),
     panel.spacing = unit(1.0, "lines")
   ) +
-  facet_grid(vars(label_parsed), vars(name), 
+  facet_grid(vars(name), vars(label_parsed), 
              scales = "free", labeller = label_parsed)
 
 egglette 
