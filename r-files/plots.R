@@ -1175,10 +1175,10 @@ my_names <- rep(unique(data$name), each=ndraw)
 bh6$lake <- bh12$lake <- ricker6$lake <- ricker12$lake <- my_lakes
 bh6$name <- bh12$name <- ricker6$name <- ricker12$name <- my_names
 
-bh6$label_parsed <- "Beverton-Holt~phi==6"
-bh12$label_parsed <- "Beverton-Holt~phi==12"
-ricker6$label_parsed <- "Ricker~phi==6"
-ricker12$label_parsed <- "Ricker~phi==12"
+bh6$label_parsed <- "Beverton-Holt~Phi==6"
+bh12$label_parsed <- "Beverton-Holt~Phi==12"
+ricker6$label_parsed <- "Ricker~Phi==6"
+ricker12$label_parsed <- "Ricker~Phi==12"
 bh6$level <- factor("bh6")
 bh12$level <- factor("bh12")
 ricker6$level <- factor("ricker6")
@@ -1212,10 +1212,10 @@ my_dat$name <- factor(my_dat$name,  # Reordering group factor levels
 )
 
 my_dat$label_parsed <- factor(my_dat$label_parsed,  # Reordering group factor levels
-                      levels = c("Beverton-Holt~phi==6",  
-                                 "Ricker~phi==6", 
-                                 "Beverton-Holt~phi==12",
-                                 "Ricker~phi==12")
+                      levels = c("Beverton-Holt~Phi==6",  
+                                 "Ricker~Phi==6", 
+                                 "Beverton-Holt~Phi==12",
+                                 "Ricker~Phi==12")
 )
 
 
@@ -1246,7 +1246,7 @@ egglette <- my_dat %>%
     axis.title = element_text(size = 12, colour = "grey30"),
     panel.spacing = unit(1.0, "lines")
   ) +
-  facet_grid(vars(name), vars(label_parsed), 
+  facet_grid(vars(label_parsed), vars(name), 
              scales = "free", labeller = label_parsed)
 
 egglette 
