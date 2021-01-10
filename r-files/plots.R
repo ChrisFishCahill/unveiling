@@ -956,6 +956,9 @@ stocking <- stocking %>%
   mutate(stock = ifelse(stock==0, NA, stock))
 
 stocking
+sum(!is.na(stocking$stock)) #147 events
+range(stocking$stock, na.rm =T) #0.01 to 40.8 fish per ha
+mean(stocking$stock, na.rm =T) #4.6 fish 
 
 r2 <- hogzilla_list %>% map_dfr(function(hogzilla_list){
   hogzilla_list %>%
@@ -1262,6 +1265,466 @@ ggsave("plots/egg_sensitivity.pdf",
        height = 6.25
 )
 
+
+#------------------------------------
+#------------------------------------
+#Plot compensation ratio vs. GDD
+# Figure 4: Maps of R0, Flate, Fmsy, 
+# This is some filthy trickery to manipulate massive stan fits
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(ar[lake], sbr0_kick[lake], 
+                 R0[lake]) %>%
+    mutate(
+      cr = exp(ar)*sbr0_kick,
+      SSBo = sbr0_kick*R0
+    ) %>%
+  median_qi()
+})
+
+data <- read.csv("data/BERTA-wide-0-25.csv")
+
+#bookkeeping on lake numbers and names
+#Delete second to last lake, this was because ran lakes in 2's 
+#(i.e., lake in rows 54/55 are the same)
+out <- out[-55,]
+
+out$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, X_long, Y_lat, Area_Ha, DD5, Mean_Depth, 
+                                X_TTM_c, Y_TTM_c, Basin_ha, TS, TP, Chloro, TDS)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+
+p <- out %>%
+  ggplot(aes(x=DD5, y=cr))+ 
+  geom_point(size=1.0) + 
+  geom_linerange(aes(x = DD5, ymin = cr.lower, ymax = cr.upper),
+                 colour = "black") +
+  xlab("Growing Degree Days > 5 (air proxy)") + 
+  ylab(expression(Compensation~ratio~phi)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30"),
+  ) + 
+  stat_smooth()
+
+ggsave("plots/cr_v_gdd.pdf",
+       width = 6,
+       height = 4
+)
+
+ggsave("plots/cr_v_gdd.pdf.png",
+       width = 6,
+       height = 4,
+       dpi = 2000
+)
+
+#################################################
+#S4 figure of plots vs. h20 stuff
+
+out <- out %>% mutate(TS = recode(TS, 
+                           eutrophic = 'eu', 
+                           mesotrophic = "meso", 
+                           oligotrophic = "olig", 
+                           'hyper-eutrophic' = "hyper"
+)               )
+
+unique(out$TS)
+
+out$TS <- factor(out$TS, 
+                 levels = c("hyper", "eu", "meso", "olig"))
+
+p <- out %>%
+  ggplot(aes(x=TP, y=SSBo))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = TP, ymin = SSBo.lower, ymax = SSBo.upper),
+                 colour = "black") +
+  xlab("Total Phosphorous (mg/l)") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p 
+
+p1 <- out %>%
+  ggplot(aes(x=Chloro, y=SSBo))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = Chloro, ymin = SSBo.lower, ymax = SSBo.upper),
+                 colour = "black") +
+  xlab("Chlorophyll a") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p1 
+
+p2 <- out %>%
+  ggplot(aes(x=TDS, y=SSBo))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = TDS, ymin = SSBo.lower, ymax = SSBo.upper),
+                 colour = "black") +
+  xlab("Total dissolved solids") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p2
+
+p3 <- out %>%
+  ggplot(aes(x=TS, y=SSBo))+ 
+  geom_violin()+
+  geom_point(size=0.5, position = position_jitter(w = 0.1, h = 0)) + 
+  xlab("Trophic status") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p3
+
+p4 <- out %>%
+  ggplot(aes(x=DD5, y=SSBo))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = DD5, ymin = SSBo.lower, ymax = SSBo.upper),
+                 colour = "black", size=0.5) +
+  xlab("GDD > 5 (air temperature proxy)") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p4
+
+p5 <- out %>%
+  ggplot(aes(x=log(Area_Ha), y=SSBo))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = log(Area_Ha), ymin = SSBo.lower, ymax = SSBo.upper),
+                 colour = "black", size=0.5) +
+  xlab("ln( Lake area (ha) )") + 
+  ylab("SSBo (kg/ha)") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p5
+
+p6 <- out %>%
+  ggplot(aes(x=TP, y=sbr0_kick))+ 
+  geom_point(size=0.5) + 
+  xlab("Total Phosphorous (mg/l)") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p6 
+
+p7 <- out %>%
+  ggplot(aes(x=Chloro, y=sbr0_kick))+ 
+  geom_point(size=0.5) + 
+  xlab("Chlorophyll a") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p7 
+
+p8 <- out %>%
+  ggplot(aes(x=TDS, y=sbr0_kick))+ 
+  geom_point(size=0.5) + 
+  xlab("Total dissolved solids") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p8
+
+p9 <- out %>%
+  ggplot(aes(x=TS, y=sbr0_kick))+ 
+  geom_violin()+
+  geom_point(size=0.5, position = position_jitter(w = 0.1, h = 0)) + 
+  xlab("Trophic status") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p9
+
+p10 <- out %>%
+  ggplot(aes(x=DD5, y=sbr0_kick))+ 
+  geom_point(size=0.5) + 
+  xlab("GDD > 5 (air temperature proxy)") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p10
+
+p11 <- out %>%
+  ggplot(aes(x=log(Area_Ha), y=sbr0_kick))+ 
+  geom_point(size=0.5) + 
+  xlab("ln( Lake area (ha) )") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p11
+
+p12 <- out %>%
+  ggplot(aes(x=TP, y=ar))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = TP, ymin = ar.lower, ymax = ar.upper),
+                 colour = "black") +
+  xlab("Total Phosphorous (mg/l)") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p12 
+
+p13 <- out %>%
+  ggplot(aes(x=Chloro, y=ar))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = Chloro, ymin = ar.lower, ymax = ar.upper),
+                 colour = "black") +
+  xlab("Chlorophyll a") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+
+p13 
+
+p14 <- out %>%
+  ggplot(aes(x=TDS, y=ar))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = TDS, ymin = ar.lower, ymax = ar.upper),
+                 colour = "black") +
+  xlab("Total dissolved solids") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p14
+
+p15 <- out %>%
+  ggplot(aes(x=TS, y=ar))+ 
+  geom_violin()+
+  geom_point(size=0.5, position = position_jitter(w = 0.1, h = 0)) + 
+  xlab("Trophic status") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p15
+
+p16 <- out %>%
+  ggplot(aes(x=DD5, y=ar))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = DD5, ymin = ar.lower, ymax = ar.upper),
+                 colour = "black", size=0.5) +
+  xlab("GDD > 5 (air temperature proxy)") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p16
+
+p17 <- out %>%
+  ggplot(aes(x=log(Area_Ha), y=ar))+ 
+  geom_point(size=0.5) + 
+  geom_linerange(aes(x = log(Area_Ha), ymin = ar.lower, ymax = ar.upper),
+                 colour = "black", size=0.5) +
+  xlab("ln( Lake area (ha) )") + 
+  ylab(expression(ln~alpha)) + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 10, colour = "grey30")
+  )  
+p17
+
+left <- cowplot::plot_grid(p, p1, p2, p4, p5, p3,
+                              nrow = 6
+)
+
+middle <-  cowplot::plot_grid(p6, p7, p8, p10, p11, p9,
+                                 nrow = 6
+)
+
+right <-  cowplot::plot_grid(p12, p13, p14, p16, p17, p15,
+                              nrow = 6
+)
+
+all <- cowplot::plot_grid(left, middle, right, ncol=3)
+
+ggsave("plots/stuff_v_H20quality.pdf",
+       width = 8,
+       height = 11
+)
+
+ggsave("plots/stuff_v_H20quality.png",
+       width = 8,
+       height = 11,
+       dpi = 2000
+)
+
+
+####Sbro_kick vs. all the h20 stuff
+
+p <- out %>%
+  ggplot(aes(x=TP, y=sbr0_kick))+ 
+  geom_point(size=1.0) + 
+  geom_linerange(aes(x = TP, ymin =sbr0_kick.lower, ymax = sbr0_kick.upper),
+                 colour = "black") +
+  xlab("Total Phosphorous (mg/l)") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30")
+  )  
+
+p 
+
+p1 <- out %>%
+  ggplot(aes(x=Chloro, y=sbr0_kick))+ 
+  geom_point(size=1.0) + 
+  geom_linerange(aes(x = Chloro, ymin = sbr0_kick.lower, ymax = sbr0_kick.upper),
+                 colour = "black") +
+  xlab("chlorophyll-a") + 
+  ylab("sbr0") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30")
+  )  
+
+p1 
+
+p2 <- out %>%
+  ggplot(aes(x=TDS, y=sbr0_kick))+ 
+  geom_point(size=1.0) + 
+  geom_linerange(aes(x = TDS, ymin = sbr0_kick.lower, ymax = sbr0_kick.upper),
+                 colour = "black") +
+  xlab("Total dissolved solids") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30")
+  )  
+p2
+
+p3 <- out %>%
+  ggplot(aes(x=TS, y=sbr0_kick))+ 
+  geom_violin()+
+  geom_point(position = position_jitter(w = 0.1, h = 0)) + 
+  xlab("Trophic status") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30")
+  )  
+p3
+
+p4 <- out %>%
+  ggplot(aes(x=DD5, y=sbr0_kick))+ 
+  geom_point(position = position_jitter(w = 0.1, h = 0)) + 
+  xlab("GDD > 5 (air temperature proxy)") + 
+  ylab("sbro") + 
+  ggsidekick::theme_sleek()+
+  theme(
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 12, colour = "grey30")
+  )  
+p4
+
+my_plot <- cowplot::plot_grid(p, p1, p2, p3,  
+                              nrow = 4
+)
+
+ggsave("plots/sbro_v_H20quality.pdf",
+       width = 5,
+       height = 8
+)
+
+ggsave("plots/sbro_v_H20quality.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+
+
+
+
+
+
+
 #------------------------------------
 #----------------------
 # Figure 4: Maps of R0, Flate, Fmsy, 
@@ -1537,7 +2000,7 @@ Fearly_map <- Fearly_map + ggsidekick::theme_sleek() +
 Fearly_map
 
 #----------------------------------
-#G map
+#ar map
 
 ar_map <- ggplot(NULL) +
   geom_polygon(colour = "black", fill = "white", 
