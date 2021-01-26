@@ -261,20 +261,22 @@ out$name <- my_names
 p <- ggplot(out, aes(y = name, x = med)) +
   geom_linerange(aes(xmin = lwr, xmax = upr), lwd = 0.4) +
   geom_linerange(aes(xmin = lwr2, xmax = upr2), lwd = 0.8) +
-  geom_point(aes(colour = period), size = 1.5) +
+  geom_point(aes(fill=period), size = 1.5, shape = 21) +
   xlab("Instantaneous fishing mortality") +
   ylab("") +
   ggsidekick::theme_sleek() +
   theme(axis.text.x = element_text(size = 8)) +
-  scale_color_manual(values = c("#b2df8a", "#1f78b4")) +
+  #scale_color_manual(values = c("#b2df8a", "#1f78b4")) +
+  scale_fill_manual(values = c("white","black")) +
   scale_x_continuous(breaks = seq(from = -3, to = 3, by = 0.2))
+p
 
-ggsave("plots/fishing_mortality.pdf",
+ggsave("plots/fishing_mortality2.pdf",
        width = 6,
        height = 6
 )
 
-ggsave("plots/fishing_mortality.png",
+ggsave("plots/fishing_mortality2.png",
        width = 6,
        height = 6,
        dpi=2000
@@ -653,8 +655,9 @@ p <- out %>%
     panel.border = element_blank(),
     axis.text.x = element_text(angle = 90, size=10),
     axis.text.y = element_text(size=10)
-  )
-
+  ) + 
+  ggsidekick::theme_sleek()
+p
 ggsave("plots/centered_R2_all_lakes.pdf",
        width = 11,
        height = 8
@@ -665,6 +668,189 @@ ggsave("plots/centered_R2_all_lakes.png",
        height = 8, 
        dpi=2000
 )
+
+every_facet_data <- out
+individual_facet_data <- out
+individual_facet_data$facet = individual_facet_data$name
+all_facet_data <- merge(every_facet_data, 
+                        data.frame(name = out$name, facet = unique(individual_facet_data$facet)))
+
+all_facet_data$my_col <- ifelse(all_facet_data$name==all_facet_data$facet, "blue", "grey")
+out$facet <- out$name
+out$my_colour <- "blue"
+
+my_dat <- pivot_wider(out, names_from = name, values_from=mean_std_R2)
+
+my_dat_melt <- melt(my_dat, id.vars="X")
+
+out$X <- out$Y <- rep(unique(out$name), length(unique(out$year)))
+
+which_lakes <- c("amisk lake", "crawling valley reservoir", 
+                 "kinnaird lake", "shiningbank lake", 
+                 "unnamed 4", "baptiste lake", "elinor lake", 
+                 "lac bellevue", "moose lake", "skeleton lake", "hilda lake", 
+                 "smoke lake", "whitefish lake", "lac la nonne", 
+                 "iosegun lake", "fickle lake", "blackett lake", 
+                 "floatingstone lake", "lac ste. anne", "pigeon lake","spencer lake",
+                 "jackson lake", 
+                 "garner lake", "buck lake", "calling lake", 
+                 "gods lake", "kehiwin lake", "lesser slave lake", 
+                 "rock island lake", "sylvan lake", 
+                 "wolf lake 2", "long lake 1", "seibert lake",
+                 "christina lake", "touchwood lake")
+
+out2 <- data.frame(X = out$name, Y = out$name, variable = out$year, value = out$R2)
+
+out2 <- as.data.frame(out2) 
+  
+p <- ggplot(out2, aes(x = variable, y = value)) + 
+  geom_rect(data = data.frame(X = which_lakes), 
+            aes(xmin = 1998, xmax = 2002, ymin = 0, ymax = 200), 
+            alpha = 0.5, fill="steelblue", inherit.aes = FALSE) + 
+  geom_line(data = transform(out2, X = NULL), aes(group = Y), colour = "grey80") +
+  geom_line(aes(group = X), size=0.75, colour="steelblue") +
+  facet_wrap(~X, labeller = label_wrap_gen()) + 
+  #scale_x_continuous(breaks = c(1990, 2000, 2010, 2018), 
+  #                   limits=c(1990,2018)) +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018), 
+                     limits=c(1980,2018)) +
+  #scale_y_continuous(limits=c(-25, 75)) +
+  ylab("Age-2 Walleye recruits") + 
+  xlab("Year") +
+  ggsidekick::theme_sleek() + 
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size=8, colour = "grey30"),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, size=8),
+    axis.text.y = element_text(size=8)
+  )
+p 
+
+ggsave("plots/R2_late_night2.png",
+       width = 11,
+       height = 8, 
+       dpi=2000
+)
+
+ggsave("plots/R2_late_night2.pdf",
+       width = 11,
+       height = 8
+)
+
+#Let's instead try mean center plotting with the spark lines
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2, 
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
+
+#get rid of second to last lake which was fit twice:
+out <- out[-c(2647:2695),]
+
+my_lakes <- rep(1:55, each=length(1980:2028))
+my_names <- rep(unique(data$name), each=length(1980:2028))
+
+out$lake <- my_lakes
+out$name <- my_names
+
+out <- out %>% 
+  group_by(name) %>%
+  mutate(mean_R2 = mean(med))
+
+out$mean_std_R2 = out$med - out$mean_R2
+
+which_lakes <- c("amisk lake", "crawling valley reservoir", 
+                 "kinnaird lake", "shiningbank lake", 
+                 "unnamed 4", "baptiste lake", "elinor lake", 
+                 "lac bellevue", "moose lake", "skeleton lake", "hilda lake", 
+                 "smoke lake", "whitefish lake", "lac la nonne", 
+                 "iosegun lake", "fickle lake", "blackett lake", 
+                 "floatingstone lake", "lac ste. anne", "pigeon lake","spencer lake",
+                 "jackson lake", 
+                 "garner lake", "buck lake", "calling lake", 
+                 "gods lake", "kehiwin lake", "lesser slave lake", 
+                 "rock island lake", "sylvan lake", 
+                 "wolf lake 2", "long lake 1", "seibert lake",
+                 "christina lake")
+
+out$pulse <- ifelse(out$name %in% which_lakes, "yes", "no")
+
+which_cycle <- c("amisk lake", "baptiste lake", "buck lake", "christina lake", 
+                 "hilda lake", "jackson lake", "long lake 1", 
+                 "milk river ridge reservoir", "pigeon lake", 
+                 "rock island lake", "touchwood lake", 
+                 "sylvan lake", "unnamed 5", "sturgeon lake", 
+                 "seibert lake")
+
+p <- out %>%  
+  ggplot(aes(x=year, y=mean_std_R2)) +
+  geom_rect(data = data.frame(name = which_lakes), 
+            aes(xmin = 1998, xmax = 2002, ymin = -10, ymax = Inf), 
+            alpha = 0.5, fill="steelblue", inherit.aes = FALSE) + 
+  geom_text(data = data.frame(name = which_cycle), 
+            x = -Inf, y = Inf, hjust = -0.2, vjust = 1,
+            size=2.75, colour="grey30",
+            label="cycle") + 
+  geom_line(lwd = 0.25) +
+  geom_ribbon(aes(ymin = lwr2-mean_R2, ymax = upr2-mean_R2),
+              linetype = 0, 
+              alpha = 0.5 
+  ) +
+  geom_ribbon(aes(ymin = lwr-mean_R2, ymax = upr-mean_R2),
+              linetype = 2, lwd = 0.5,
+              alpha = 0.25 
+  ) +
+  scale_x_continuous(breaks = c(1980, 1990, 2000, 2010, 2018), 
+                     limits=c(1980,2018)) +
+  facet_wrap(~name, scales = "free_y", 
+             labeller = label_wrap_gen()) + 
+  ylab("Age 2 recruits (mean standardized)") + 
+  xlab("Year") + 
+  ggsidekick::theme_sleek() + 
+  theme(
+    legend.position="none", 
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size=8, colour = "grey30"),
+    panel.spacing.x = unit(0.5, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, size=8),
+    axis.text.y = element_text(size=8)
+  ) #+ 
+  #geom_hline(yintercept = 10, lty=2)
+p
+
+ggsave("plots/R2_centered.png",
+       width = 11,
+       height = 8, 
+       dpi=2000
+)
+
+ggsave("plots/R2_centered.pdf",
+       width = 11,
+       height = 8
+)
+
+
+
+
+#---------------------------------------------------------------
 
 p <- out %>%
   filter(name %in% which_lakes) %>%
@@ -883,14 +1069,30 @@ ggsave("plots/trajectory.png",
        dpi=2000
 )
 
-pdf("plots/S3.pdf",
+#S3 with stocking:
+stocking <- readRDS("data/stocking_matrix_ha.rds")
+which_lakes <- c("pigeon lake", "buck lake", "lac la biche", "lake newell")
+stocking <- stocking[which(rownames(stocking) %in% which_lakes),]
+colnames(stocking) <- 1980:2018
+stocking <- as.data.frame(stocking)
+stocking$name <- rownames(stocking)
+
+stock_surv <- 0.01
+stocking <- stocking %>% 
+  pivot_longer(cols = !name, names_to = "year", 
+               names_transform = list(year = as.numeric),
+               values_to="stock") %>%
+  mutate(stock = stock*stock_surv) %>%
+  mutate(stock = ifelse(stock==0, NA, stock))
+
+pdf("plots/S3_stocking.pdf",
     width = 8, height = 11
 )
 
 #Now make S3 for all lakes
 for(i in 1:3){
 trajectory_plot <- trajectory_dat %>%
-  filter(!(name %in% which_lakes)) %>%
+  #filter(!(name %in% which_lakes)) %>%
   ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which) )) +
   geom_line(lwd = 0.5) +
   geom_ribbon(aes(ymin = lwr2, ymax = upr2),
@@ -932,6 +1134,10 @@ trajectory_plot <- trajectory_dat %>%
     # legend.key.size = unit(0.25, 'lines'),
     # legend.direction = "horizontal",
     # axis.text.x = element_text(angle = 90, size=5.5)
+  ) + 
+  geom_point(data = stocking, aes(x = year + 2, y = stock),
+             shape = 23, fill = "darkorange2",
+             color = "black", size = 0.75
   ) + 
   ggforce::facet_wrap_paginate(~name, ncol=3, nrow=6, scales = "free", page=i) 
 print(trajectory_plot)
@@ -1860,6 +2066,51 @@ R0_map <- R0_map + ggsidekick::theme_sleek() +
 R0_map
 
 #----------------------------------
+#----------------------------------
+#gdd map
+gdd_map <- ggplot(NULL) +
+  geom_polygon(colour = "black", fill = "white", 
+               data = alta.fort, aes(x = X_long, y = Y_lat, group = id)) +
+  geom_point(pch = 21, size = 1.5, data = out, aes(X_long, Y_lat, fill = DD5)) +
+  scale_x_continuous(breaks = c(-120, -115, -110)) +
+  scale_y_continuous(breaks = c(49, 52, 56, 60)) +
+  scale_fill_gradientn(
+    colours = c("darkorange1", "white", "steelblue"),
+    values = c(1, 0.5, 0.35, 0.15, 0),
+    name = "GDD"
+  )
+
+gdd_map <- gdd_map + 
+  ylab("Latitude") + xlab("Longitude")
+
+gdd_map <- gdd_map + ggalt::coord_proj(
+  paste0(CRS("+proj=tmerc +lat_0=0 +lon_0=-115 +k=0.9992 +x_0=500000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+)
+
+gdd_map <- gdd_map + ggsidekick::theme_sleek() +
+  theme(
+    legend.position="top",
+    axis.line = element_line(colour = "grey30"),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    panel.spacing.x = unit(1, "lines"),
+    panel.spacing.y = unit(0.5, "lines"),
+    panel.border = element_blank()
+  )
+gdd_map
+
+ggsave("plots/gdd_map.pdf",
+       width = 6.75,
+       height = 9
+)
+
+ggsave("plots/gdd_map.png",
+       width = 6.75,
+       height = 9, 
+       dpi=2000
+)
+#---------------------------------
 #SPR map
 
 SPR_map <- ggplot(NULL) +
@@ -2142,6 +2393,122 @@ ggplot(aes(x=Y_TTM_c, y=Fmsy)) + geom_point()
 
 #
 #----------------------------------
+#Flate vs. omega and a50
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list){
+  hogzilla_list %>%
+    spread_draws(v[name,period]) %>%
+    median_qi() %>%
+    mutate(
+      value = v,
+    ) %>%
+    filter(period==2)
+})
+
+#bookkeeping on lake numbers and names
+#Delete second to last lake, this was because ran lakes in 2's 
+#(i.e., lake in rows 54/55 are the same)
+out <- out[-55,]
+
+out$name <- unique(data$name)
+
+data2 <- data %>% dplyr::select(name, omega, a50, linf, vbk, DD5)
+data2 <- unique(data2)
+
+out <- left_join(out, data2, by="name")
+
+out
+
+out %>%
+  ggplot(aes(y=v, x=omega)) + 
+  geom_point() +
+  xlab(expression(Omega~(cm/yr))) + 
+         ylab(expression(F[late])) + 
+  ggsidekick::theme_sleek()
+
+ggsave("plots/flate_v_omega.pdf",
+       width = 5,
+       height = 4
+)
+
+ggsave("plots/flate_v_omega.png",
+       width = 5,
+       height = 4,
+       dpi = 2000
+)
+
+out %>%
+  ggplot(aes(y=v, x=DD5)) + 
+  geom_point() +
+  xlab("GDD > 5 (air temperature proxy)") + 
+  ylab(expression(F[late])) + 
+  ggsidekick::theme_sleek()
+
+ggsave("plots/flate_v_gdd.pdf",
+       width = 5,
+       height = 4
+)
+
+ggsave("plots/flate_v_gdd.png",
+       width = 5,
+       height = 4,
+       dpi = 2000
+)
+
+out %>%
+  ggplot(aes(y=v, x=a50)) + 
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  xlab("a50") + 
+  ylab(expression(F[late])) + 
+  ggsidekick::theme_sleek()
+
+ggsave("plots/flate_v_a50.pdf",
+       width = 5,
+       height = 4
+)
+
+ggsave("plots/flate_v_a50.png",
+       width = 5,
+       height = 4,
+       dpi = 2000
+)
+
+out %>%
+  ggplot(aes(y=v, x=vbk)) + 
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  xlab("vbk") + 
+  ylab(expression(F[late])) + 
+  ggsidekick::theme_sleek()
+
+ggsave("plots/flate_v_vbk.pdf",
+       width = 5,
+       height = 4
+)
+
+ggsave("plots/flate_v_vbk.png",
+       width = 5,
+       height = 4,
+       dpi = 2000
+)
+
+out %>%
+  ggplot(aes(y=v, x=linf)) + 
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  xlab(expression(l[infinity])) + 
+  ylab(expression(F[late])) + 
+  ggsidekick::theme_sleek()
+
+ggsave("plots/flate_v_linf.pdf",
+       width = 5,
+       height = 4
+)
+
+ggsave("plots/flate_v_linf.png",
+       width = 5,
+       height = 4,
+       dpi = 2000
+)
+
+#----------------------------------
 #Time series clustering analysis
 out <- out %>% filter(year <= 2018) %>%
   filter(name != "lac bellevue") %>%
@@ -2385,3 +2752,63 @@ p <- new_dat %>%
   geom_vline(xintercept=as.numeric(as.Date("2012-01-01")), linetype=4) +
   geom_vline(xintercept=as.numeric(as.Date("2012-12-01")), linetype=4)
 p
+
+#----------------------------------------
+#bad fisheries kobe
+
+my_names <- c("keho lake", "milk river ridge reservoir", "christina lake", 
+              "north wabasca lake", "borque lake", "lake newell", 
+              "crawling valley reservoir", "lac la biche", "unnamed 4", 
+              "seibert lake", "calling lake")
+
+sub_dat <- data %>% filter(name %in% my_names)
+yr_dat <- sub_dat$year
+name_dat <- sub_dat$name
+sub_dat <- sub_dat[, c(which(colnames(sub_dat) %in% 2:25))]
+sub_dat$year <- yr_dat
+sub_dat$name <- name_dat
+drop_cols <- c("year", "name")
+
+sub_dat <- sub_dat %>%
+  pivot_longer(-one_of(drop_cols), names_to = c("age")) %>%
+  mutate(year = year + 1999)
+
+sub_dat$age <- as.integer(sub_dat$age)
+sub_dat$value[sub_dat$value == 0] <- NA
+bp <- ggplot(sub_dat, aes(x = year, y = age, size = value)) +
+  geom_blank() +
+  facet_wrap(~name)
+
+bp <- bp + geom_point(alpha = 0.75, colour = "black") +
+  scale_size(range = c(.5, 5), name = "Number of Fish") +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(breaks = seq(2000, 2018, 1)) +
+  scale_y_continuous(breaks = c(2, 5, 10, 15, 20), limits = c(1, 20)) +
+  expand_limits(x = c(2000, 2018)) +
+  ylab("Age") + xlab("Year") +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(
+      angle = 90, size = 8,
+      hjust = 0.95, vjust = 0.2
+    ),
+    axis.text.y = element_text(size = 8)
+    # legend.text = element_text(size = 1),
+    # legend.key.size = unit(0.25, 'lines'),
+    # legend.direction = "horizontal",
+    # axis.text.x = element_text(angle = 90, size=5.5)
+  )
+bp
+
+ggsave("plots/bubble_highF.pdf",
+       width = 8.5,
+       height = 5
+)
+
+ggsave("plots/bubble_highF.png",
+       width = 8,
+       height = 6,
+       dpi = 2000
+)
