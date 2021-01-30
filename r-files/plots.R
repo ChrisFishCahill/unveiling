@@ -905,8 +905,126 @@ ggsave("plots/R2_centered.pdf",
   width = 11,
   height = 8
 )
+#---------------------------------------------------------------
+# ridgelines
 
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list) {
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2,
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
 
+# get rid of second to last lake which was fit twice:
+out <- out[-c(2647:2695), ]
+
+my_lakes <- rep(1:55, each = length(1980:2028))
+my_names <- rep(unique(data$name), each = length(1980:2028))
+
+out$lake <- my_lakes
+out$name <- my_names
+
+out <- out %>%
+  group_by(name) %>%
+  mutate(mean_R2 = mean(med))
+
+library(ggridges)
+# scale_y_discrete(
+#   breaks = c(1980, 1990, 2000, 2010, 2018),
+#   limits = c(1980, 2018)
+# ) +
+  
+  
+p <- out %>%
+  filter(year <= 2018) %>%
+  ggplot(aes(x = year, y = name, height=med^(1/5))) + 
+  geom_ridgeline(fill=NA, size=0.35) + 
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+   breaks = c(1980, 1996, 2000, 2018),
+   limits = c(1980, 2019), 
+   expand = c(0, 0)
+  ) + 
+  ggsidekick::theme_sleek() + 
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, size = 8, vjust=0.45, 
+                               margin=margin(-10,0,0,0)),
+    axis.text.y = element_text(size = 8, vjust=-1, hjust=1)
+  )
+
+p 
+
+ggsave("plots/ridgelines.png",
+       width = 4.5,
+       height = 7,
+       dpi = 2000
+)
+
+ggsave("plots/ridgelines.pdf",
+       width = 4.5,
+       height = 7
+)
+
+#Joy Division
+
+p <- out %>%
+  ggplot(aes(x = year, y = name, height=med^(1/5))) + 
+  geom_ridgeline(fill=NA, size=0.55, colour="white", scale=2) + 
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1980, 1996, 2000, 2028),
+    limits = c(1980, 2028), 
+    expand = c(0, 0)
+  ) + 
+  ggsidekick::theme_sleek() + 
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(1, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank()
+  )
+
+p + theme(panel.background = element_rect(fill = 'black', colour = 'black'))
+
+ggsave("plots/joylines.png",
+       width = 4.5,
+       height = 7,
+       dpi = 2000
+)
+
+ggsave("plots/joylines.pdf",
+       width = 4.5,
+       height = 7
+)
 
 
 #---------------------------------------------------------------
@@ -1142,7 +1260,81 @@ ggsave("plots/trajectory.png",
   dpi = 2000
 )
 
+#------------------------------------
 # S3 with stocking:
+
+r2 <- hogzilla_list %>% map_dfr(function(hogzilla_list) {
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2,
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
+
+ssb <- hogzilla_list %>% map_dfr(function(hogzilla_list) {
+  hogzilla_list %>%
+    spread_draws(SSB[lake, year]) %>%
+    mutate(
+      value = SSB,
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(SSB, 0.1),
+      med = quantile(SSB, 0.5),
+      upr = quantile(SSB, 0.9),
+      lwr2 = quantile(SSB, 0.25),
+      upr2 = quantile(SSB, 0.75),
+    )
+})
+
+ssb_c <- hogzilla_list %>% map_dfr(function(hogzilla_list) {
+  hogzilla_list %>%
+    spread_draws(SSB_obs[Nobs]) %>%
+    median_qi() %>%
+    mutate(
+      SSB_obs = SSB_obs,
+      SSB_lower = SSB_obs - 0.30 * SSB_obs,
+      SSB_upper = SSB_obs + 0.30 * SSB_obs
+    )
+})
+
+
+# get rid of second to last lake which was fit twice:
+r2 <- r2[-c(2647:2695), ]
+ssb <- ssb[-c(2647:2695), ]
+
+my_lakes <- rep(1:55, each = length(1980:2028))
+my_names <- rep(unique(data$name), each = length(1980:2028))
+
+r2$lake <- my_lakes
+r2$name <- my_names
+
+ssb$lake <- my_lakes
+ssb$name <- my_names
+
+ssb$which <- "female \nbiomass"
+r2$which <- "recruits"
+
+# deal with ssb_c
+bogus_fit <- 234:236
+ssb_c <- ssb_c[-bogus_fit, ]
+ssb_c$year <- data$year + 1999
+ssb_c$name <- data$name
+
+trajectory_dat <- rbind(ssb, r2)
+
+trajectory_dat <- left_join(trajectory_dat, ssb_c,
+                            by = c("name", "year")
+)
+
 stocking <- readRDS("data/stocking_matrix_ha.rds")
 which_lakes <- c("pigeon lake", "buck lake", "lac la biche", "lake newell")
 stocking <- stocking[which(rownames(stocking) %in% unique(trajectory_dat$name)), ]
@@ -1160,14 +1352,25 @@ stocking <- stocking %>%
   mutate(stock = stock * stock_surv) %>%
   mutate(stock = ifelse(stock == 0, NA, stock))
 
+
+plot_dat <- trajectory_dat %>%
+  filter(!(name %in% c("winefred lake")))
+
+
+stocking <- stocking %>%
+  filter(!(name %in% c("winefred lake")))
+
+plot_dat$name <- as.factor(plot_dat$name)
+plot_dat$name <- droplevels(plot_dat$name) #misery@#$%
+
 pdf("plots/S3_stocking.pdf",
-  width = 8, height = 11
+    width = 8, height = 11
 )
 
 # Now make S3 for all lakes
 for (i in 1:3) {
-  trajectory_plot <- trajectory_dat %>%
-    # filter(!(name %in% which_lakes)) %>%
+  trajectory_plot <- plot_dat %>%
+    #filter(!(name %in% which_lakes)) %>%
     ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which))) +
     geom_line(lwd = 0.5) +
     geom_ribbon(aes(ymin = lwr2, ymax = upr2),
@@ -1192,15 +1395,15 @@ for (i in 1:3) {
     geom_linerange(aes(x = year, ymin = SSB_lower, ymax = SSB_upper),
       colour = "black"
     ) +
-    # geom_point(aes(x = year + 2, y = stock),
-    #            shape = 23, fill = "darkorange2",
-    #            color = "steelblue", size = 3
-    # ) +
     scale_y_continuous(sec.axis = sec_axis(~ . * 1,
       name = "Age 2 recruits (N/ha)"
     )) +
+    geom_point(
+      data = stocking, aes(x = year + 2, y = stock),
+      shape = 23, fill = "darkorange2",
+      color = "black", size = 1
+    ) +
     theme(
-      # legend.position = "none",
       axis.title.y = element_text(size = 12),
       axis.title.x = element_text(size = 12),
       axis.text.x = element_text(
@@ -1208,15 +1411,6 @@ for (i in 1:3) {
         hjust = 0.95, vjust = 0.2
       ),
       axis.text.y = element_text(size = 8)
-      # legend.text = element_text(size = 1),
-      # legend.key.size = unit(0.25, 'lines'),
-      # legend.direction = "horizontal",
-      # axis.text.x = element_text(angle = 90, size=5.5)
-    ) +
-    geom_point(
-      data = stocking, aes(x = year + 2, y = stock),
-      shape = 23, fill = "darkorange2",
-      color = "black", size = 0.75
     ) +
     ggforce::facet_wrap_paginate(~name, ncol = 3, nrow = 6, scales = "free", page = i)
   print(trajectory_plot)
