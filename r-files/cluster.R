@@ -101,12 +101,17 @@ out <- out %>%
   mutate(med_avg = median(med)) %>%
   ungroup()
 
+my_cols <- c("#7570B3", "#E7298A", 
+             "#A6761D", "#666666",
+             "#66A61E", "#D95F02", 
+             "#1B9E77", "#E6AB02")
+out$my_colors <- my_cols[out$cluster]
 
-out %>%
-ggplot(aes(year, med, group=name, color=name)) +
-  geom_line(color="steelblue", alpha=0.75) +
-  geom_line(aes(y = med_avg, x = year, group = cluster),
-            col = "darkorange2", size = 1.25)  + 
+
+p <- out %>%
+ggplot(aes(year, med, group=name, color=cluster)) +
+  geom_line(color="grey", alpha=0.75) +
+  #scale_color_manual(values = colors) + 
   theme_minimal() +
   ylab("R2") + xlab("Year") + 
   facet_wrap(~cluster, nrow = 4, ncol=2, scales="free_y") + 
@@ -117,11 +122,49 @@ ggplot(aes(year, med, group=name, color=name)) +
   ) +
   xlab("Year") +
   ylab("Age 2 Walleye") 
+out1 <- out %>% filter(cluster==1)
+p <- p + geom_line(data=out1, aes(y = med_avg, x = year),
+                size = 1.25, color=my_cols[1])  
+
+out2 <- out %>% filter(cluster==2)
+p <- p + geom_line(data=out2, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[2]) 
+
+out3 <- out %>% filter(cluster==3)
+p <- p + geom_line(data=out3, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[3]) 
+
+out4 <- out %>% filter(cluster==4)
+p <- p + geom_line(data=out4, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[4]) 
+
+out5 <- out %>% filter(cluster==5)
+p <- p + geom_line(data=out5, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[5]) 
+
+out6 <- out %>% filter(cluster==6)
+p <- p + geom_line(data=out6, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[6]) 
+
+out7 <- out %>% filter(cluster==7)
+p <- p + geom_line(data=out7, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[7]) 
+
+out8 <- out %>% filter(cluster==8)
+p <- p + geom_line(data=out8, aes(y = med_avg, x = year),
+                   size = 1.25, color=my_cols[8]) 
 
 ggsave("plots/cluster_trends.pdf",
        width = 8,
        height = 11
 )
+
+ggsave("plots/cluster_trends.png",
+       width = 8,
+       height = 11,
+       dpi = 2000
+)
+
 
 ########################################################
 #Ridge plot by cluster?
