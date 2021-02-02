@@ -942,20 +942,20 @@ library(ggridges)
 #   breaks = c(1980, 1990, 2000, 2010, 2018),
 #   limits = c(1980, 2018)
 # ) +
-  
-  
+
+
 p <- out %>%
   filter(year <= 2018) %>%
-  ggplot(aes(x = year, y = name, height=med^(1/5))) + 
-  geom_ridgeline(fill=NA, size=0.35) + 
+  ggplot(aes(x = year, y = name, height = med^(1 / 5))) +
+  geom_ridgeline(fill = NA, size = 0.35) +
   ylab("") +
   xlab("") +
   scale_x_continuous(
-   breaks = c(1980, 1996, 2000, 2018),
-   limits = c(1980, 2019), 
-   expand = c(0, 0)
-  ) + 
-  ggsidekick::theme_sleek() + 
+    breaks = c(1980, 1996, 2000, 2018),
+    limits = c(1980, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
   theme(
     legend.position = "none",
     axis.line = element_blank(),
@@ -967,37 +967,39 @@ p <- out %>%
     axis.ticks.x = element_blank(),
     axis.ticks.y = element_blank(),
     panel.border = element_blank(),
-    axis.text.x = element_text(angle = 90, size = 8, vjust=0.45, 
-                               margin=margin(-10,0,0,0)),
-    axis.text.y = element_text(size = 8, vjust=-1, hjust=1)
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1)
   )
 
-p 
+p
 
 ggsave("plots/ridgelines.png",
-       width = 4.5,
-       height = 7,
-       dpi = 2000
+  width = 4.5,
+  height = 7,
+  dpi = 2000
 )
 
 ggsave("plots/ridgelines.pdf",
-       width = 4.5,
-       height = 7
+  width = 4.5,
+  height = 7
 )
 
-#Joy Division
+# Joy Division
 
 p <- out %>%
-  ggplot(aes(x = year, y = name, height=med^(1/5))) + 
-  geom_ridgeline(fill=NA, size=0.55, colour="white", scale=2) + 
+  ggplot(aes(x = year, y = name, height = med^(1 / 6))) +
+  geom_ridgeline(fill = NA, size = 0.55, colour = "white", scale = 3) +
   ylab("") +
   xlab("") +
   scale_x_continuous(
     breaks = c(1980, 1996, 2000, 2028),
-    limits = c(1980, 2028), 
+    limits = c(1980, 2028),
     expand = c(0, 0)
-  ) + 
-  ggsidekick::theme_sleek() + 
+  ) +
+  ggsidekick::theme_sleek() +
   theme(
     legend.position = "none",
     axis.line = element_blank(),
@@ -1013,19 +1015,377 @@ p <- out %>%
     axis.text.y = element_blank()
   )
 
-p + theme(panel.background = element_rect(fill = 'black', colour = 'black'))
+p + theme(panel.background = element_rect(fill = "black", colour = "black"))
 
 ggsave("plots/joylines.png",
-       width = 4.5,
-       height = 7,
-       dpi = 2000
+  width = 5,
+  height = 8,
+  dpi = 2000
 )
 
 ggsave("plots/joylines.pdf",
-       width = 4.5,
-       height = 7
+  width = 4.5,
+  height = 7
 )
 
+
+#---------------------------------------------------------------
+# ridgelines
+#Even more joylines
+# with some carl ideas
+
+out <- hogzilla_list %>% map_dfr(function(hogzilla_list) {
+  hogzilla_list %>%
+    spread_draws(R2[lake, year]) %>%
+    mutate(
+      value = R2,
+      year = year + 1979
+    ) %>%
+    summarise(
+      lwr = quantile(R2, 0.1),
+      med = quantile(R2, 0.5),
+      upr = quantile(R2, 0.9),
+      lwr2 = quantile(R2, 0.25),
+      upr2 = quantile(R2, 0.75),
+    )
+})
+
+# get rid of second to last lake which was fit twice:
+out <- out[-c(2647:2695), ]
+
+my_lakes <- rep(1:55, each = length(1980:2028))
+my_names <- rep(unique(data$name), each = length(1980:2028))
+
+out$lake <- my_lakes
+out$name <- my_names
+
+out <- out %>%
+  group_by(name) %>%
+  mutate(mean_R2 = mean(med))
+
+data <- readRDS("data/BERTA-wide-0-25.rds")
+
+
+data$year <- data$year + 1999
+
+join_data <- data %>% group_by(name) %>%
+  mutate(max_year = max(year), 
+         min_year = min(year)) %>%
+  select(c("name", "max_year", "min_year"))
+
+join_data <- unique(join_data)
+
+out <- left_join(out, join_data, by="name")
+
+out
+
+my_early_mean <- out %>%
+  group_by(lake, med) %>%
+  filter(year < 1982) %>%
+  mutate(my_early_mean = mean(med)) %>%
+  ungroup() %>%
+  select(c("name", "my_early_mean"))
+my_early_mean <- unique(my_early_mean)
+
+
+out <- left_join(out, my_early_mean)
+
+out <- out %>% group_by(name) %>%
+  mutate(med = ifelse(year <= max_year, med, NA)) 
+out <- out %>% group_by(name) %>%
+  mutate(med = ifelse(year <= min_year-18, NA, med))
+
+find_min <- data %>%
+  select(name, year, "2":"20") %>%
+pivot_longer(
+  cols = c("2":"20"), names_to = "age",
+  values_to="count"
+)
+
+find_min$age = as.numeric(find_min$age)
+find_min$earliest_yr <- NA
+
+for(i in unique(find_min$name)){
+  sub.dat <- find_min[which(find_min$name==i),]
+  first_yr <- unique(sub.dat$year)[1]
+  second_yr <- unique(sub.dat$year)[2]
+  third_yr <- unique(sub.dat$year)[3]
+  
+  sub.sub.dat <- sub.dat[which(sub.dat$year==first_yr),]
+  max_age <- max(sub.sub.dat$age[which(sub.sub.dat$count !=0)])
+  
+  sub.sub.dat2 <- sub.dat[which(sub.dat$year==second_yr),]
+  max_age2 <- max(sub.sub.dat2$age[which(sub.sub.dat2$count !=0)])
+  
+  sub.sub.dat3 <- sub.dat[which(sub.dat$year==third_yr),]
+  max_age3 <- max(sub.sub.dat3$age[which(sub.sub.dat3$count !=0)])
+  
+  hatch_yr1 <- first_yr - (max_age-2) #2 for recruitment to age 2 
+  hatch_yr2 <- second_yr - (max_age2-2)
+  hatch_yr3 <- third_yr - (max_age3-2)
+  earliest_yr <- min(c(hatch_yr1, hatch_yr2, hatch_yr3))
+  
+  find_min$earliest_yr[which(find_min$name==i)] <- earliest_yr
+}
+
+find_min <- find_min %>%
+  select(name, earliest_yr)
+find_min <- unique(find_min)
+
+out <- left_join(out, find_min, by=c("name"))
+
+out <- out %>% group_by(name) %>%
+  mutate(med = ifelse(year < earliest_yr, NA, med))
+
+lake_dat <- data %>% group_by(name) %>%
+  select(c("X_TTM_c","Y_TTM_c", "Area_Ha", "DD5", "Max_Depth", "Mean_Depth", 
+           "omega", "a50"))
+
+lake_dat <- unique(lake_dat)
+
+lake_dat$space <- model.matrix(~ -1 + lake_dat$X_TTM_c:lake_dat$Y_TTM_c)
+
+out <- left_join(out, lake_dat, by="name")
+
+# out$name <- factor(out$name, # Reordering group factor levels
+#                               levels = c(
+#                                 "lac la biche", "pigeon lake", "lake newell",
+#                                 "buck lake"
+#                               )
+# )
+
+# data <- read.csv("data/BERTA-wide-0-25.csv")
+# 
+# # bookkeeping on lake numbers and names
+# # Delete second to last lake, this was because ran lakes in 2's
+# # (i.e., lake in rows 54/55 are the same)
+# out <- out[-55, ]
+# 
+# out$name <- unique(data$name)
+# 
+# data2 <- data %>% dplyr::select(
+#   name, X_long, Y_lat, Area_Ha, DD5, Mean_Depth,
+#   X_TTM_c, Y_TTM_c, Basin_ha, TS, TP, Chloro, TDS
+# )
+# data2 <- unique(data2)
+
+out <- out %>% filter(year <=2018)
+
+library(forcats)
+p <- out %>%
+  ggplot(aes(x = year, y = fct_reorder(name, Y_TTM_c, .desc=F), 
+             height = med^(1 / 4.5))) +
+  geom_ridgeline(fill = NA, size = 0.35, scale = 1) +
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1984, 1990, 2000, 2009, 2018),
+    limits = c(1984, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1), 
+    plot.title = element_text(size= 8, hjust = 0.5)
+  )
+
+p <- p + ggtitle("North to South")
+
+ggsave("plots/ridgelines_northsouth.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+p2 <- out %>%
+  ggplot(aes(x = year, y = fct_reorder(name, X_TTM_c, .desc=F), 
+             height = med^(1 / 4.5))) +
+  geom_ridgeline(fill = NA, size = 0.35, scale = 1) +
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1984, 1990, 2000, 2009, 2018),
+    limits = c(1984, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1), 
+    plot.title = element_text(size= 8, hjust = 0.5)
+  )
+
+p2 <- p2 + ggtitle("East to West")
+
+
+
+ggsave("plots/ridgelines_eastwest.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+
+p3 <- out %>%
+  ggplot(aes(x = year, y = fct_reorder(name, DD5, .desc=F), 
+             height = med^(1 / 4.5))) +
+  geom_ridgeline(fill = NA, size = 0.35, scale = 1) +
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1984, 1990, 2000, 2009, 2018),
+    limits = c(1984, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1),
+    plot.title = element_text(size = 8, hjust = 0.5)
+  )
+
+p3 <- p3 + ggtitle("Degree days")
+
+ggsave("plots/ridgelines_GDD_highlow.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+
+p4 <- out %>%
+  ggplot(aes(x = year, y = fct_reorder(name, Area_Ha, .desc=F), 
+             height = med^(1 / 4.5))) +
+  geom_ridgeline(fill = NA, size = 0.35, scale = 1) +
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1984, 1990, 2000, 2009, 2018),
+    limits = c(1984, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1),
+    plot.title = element_text(size = 8, hjust = 0.5)
+  )
+
+p4 <- p4 + ggtitle("Lake area") 
+
+ggsave("plots/ridgelines_area_highlow.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+p5 <- out %>%
+  ggplot(aes(x = year, y = fct_reorder(name, space, .desc=F), 
+             height = med^(1 / 4.5))) +
+  geom_ridgeline(fill = NA, size = 0.35, scale = 1) +
+  ylab("") +
+  xlab("") +
+  scale_x_continuous(
+    breaks = c(1984, 1990, 2000, 2009, 2018),
+    limits = c(1984, 2019),
+    expand = c(0, 0)
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "none",
+    axis.line = element_blank(),
+    axis.title = element_text(size = 12, colour = "grey30"),
+    strip.text.x = element_text(size = 8, colour = "grey30"),
+    panel.spacing.x = unit(0, "lines"),
+    panel.spacing.y = unit(0, "lines"),
+    panel.grid = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(
+      angle = 90, size = 8, vjust = 0.45,
+      margin = margin(-10, 0, 0, 0)
+    ),
+    axis.text.y = element_text(size = 8, vjust = -1, hjust = 1),
+    plot.title = element_text(size = 8, hjust = 0.5)
+  )
+
+p5 <- p5 + ggtitle("Space") 
+
+ggsave("plots/ridgelines_space.png",
+       width = 5,
+       height = 8,
+       dpi = 2000
+)
+
+
+my_plot <- cowplot::plot_grid(p, p2, p5, p3, p4,
+                              nrow = 1
+)
+
+ggsave("plots/ridgelines_multipanel.jpg",
+       width = 11,
+       height = 8,
+       dpi = 2000
+)
+
+ggsave("plots/ridgelines_multipanel.pdf",
+       width = 11,
+       height = 8
+)
 
 #---------------------------------------------------------------
 
@@ -1332,7 +1692,7 @@ ssb_c$name <- data$name
 trajectory_dat <- rbind(ssb, r2)
 
 trajectory_dat <- left_join(trajectory_dat, ssb_c,
-                            by = c("name", "year")
+  by = c("name", "year")
 )
 
 stocking <- readRDS("data/stocking_matrix_ha.rds")
@@ -1361,16 +1721,16 @@ stocking <- stocking %>%
   filter(!(name %in% c("winefred lake")))
 
 plot_dat$name <- as.factor(plot_dat$name)
-plot_dat$name <- droplevels(plot_dat$name) #misery@#$%
+plot_dat$name <- droplevels(plot_dat$name) # misery@#$%
 
 pdf("plots/S3_stocking.pdf",
-    width = 8, height = 11
+  width = 8, height = 11
 )
 
 # Now make S3 for all lakes
 for (i in 1:3) {
   trajectory_plot <- plot_dat %>%
-    #filter(!(name %in% which_lakes)) %>%
+    # filter(!(name %in% which_lakes)) %>%
     ggplot(aes(x = year, y = med, colour = factor(which), fill = factor(which))) +
     geom_line(lwd = 0.5) +
     geom_ribbon(aes(ymin = lwr2, ymax = upr2),
