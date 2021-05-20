@@ -1,7 +1,7 @@
 SSB <- 1:100
 ar = 1.7
 br = 0.15
-m = 0.5
+m = 0.5 #depensation parameter, ~ 2 for clear depensation
 par(mfrow=c(2,2))
 rec_ricker <- SSB*exp(ar-br*SSB)
 ricker_dep <- (SSB^m)*exp(ar-br*SSB)
