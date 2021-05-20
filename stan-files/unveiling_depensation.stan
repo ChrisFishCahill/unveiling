@@ -294,7 +294,7 @@ model {
   }
   G ~ normal(0,prior_sigma_G); 
   to_vector(w) ~ normal(prior_mean_w, prior_sigma_w); 
-  to_vector(m) ~ normal(1, m_prior); 
+  m ~ normal(1, m_prior); 
   
   //likelihood
   caa_obs ~ poisson(caa_pred); 

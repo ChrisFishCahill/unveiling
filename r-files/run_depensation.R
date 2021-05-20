@@ -211,7 +211,7 @@ n_warmup = n_iter/2
 names <- unique(data$name)
 
 #--------------------------------------------------------
-#Fit models
+#loop through and fit models to all alberta walleye lakes
 
 get_fits(rec_model = "ricker", cr_prior = 6,
          n_iter = n_iter, n_chains = n_chains,
