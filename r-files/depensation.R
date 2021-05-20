@@ -18,5 +18,3 @@ plot(log(rec_bh/SSB) ~ SSB, main="Bev-Holt",
      ylab="ln(R/S)")
 plot(log(bh_dep/SSB) ~ SSB, main="Depensatory Bev-Holt", 
      ylab="ln(R/S)")
-
-hist(rnorm(1e4, 1, 1))
