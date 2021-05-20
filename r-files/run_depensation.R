@@ -1,16 +1,11 @@
 ######################################################
 #This script differs from others in that it runs depensatory ricker models, 
-#as per turbo nerd emails with holly et al.
+#as per turbo-nerd emails with holly et al.
 #
-# Functions and code to call stan runs, save them, and make tableaus for each 
-# run. Note that all files are saved on an external hard drive 
+# Functions and code to call stan runs and save them.
+# Note that all files are saved on an external hard drive 
 # (i.e., they are big) and thus are not in the unveiling directory 
-# Also: this file sources get_tableau.R
-# library(dplyr)
-# library(stringr)
-# library(strini)
-source("r-files/get_tableau.R")
-library(tidyverse)
+
 options(mc.cores = parallel::detectCores())
 rstan::rstan_options(auto_write = TRUE)
 
@@ -203,7 +198,7 @@ initial_yr <- t - max_a + rec_a - 2
 add_year <- initial_yr - 1
 
 # load .stan
-m <- rstan::stan_model("stan-files/unveiling_depensation.stan", verbose = F)
+m <- rstan::stan_model("stan-files/BERTA_unveiling_depensation.stan", verbose = F)
 
 n_iter = 2000
 n_chains = 10
