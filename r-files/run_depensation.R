@@ -25,8 +25,7 @@ get_fits <- function(rec_model = c("bev-holt", "ricker"),
   rec_model <- match.arg(rec_model)
   counter <- 1:2 #run lakes in twos for speed
   which_fit <- 1
-  browser()
-  
+
   for (i in 1:((length(names) / 2)+1)) {
     if(i==28){ #accounting to fit last lake (55/2 is not an even number) 
       counter=c(54,55)
