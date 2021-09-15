@@ -6,7 +6,7 @@ The relevant portions of the directory for users interested in the modeling appr
 The primary .stan script is `BERTA_unveiling.stan`, which is the model script that conducts all our Bayesian analyses.  This .stan file is called and controlled by the `run.R` script in the r-files folder.  All assessment models were fitted to Alberta Fall Walleye Index Netting survey data using these two scripts.
 
 ## An additional FYI for users
-Please note that *all other folders and files* were used to develop the online BERTA Shiny application, develop plots and maps of relevant assessment quantities, process assessment output, or were used to conduct sensitivity tests. 
+Please note that *all other folders and files* were used to develop the online BERTA Shiny application, develop plots and maps of relevant assessment quantities, process assessment output, or were used to conduct sensitivity tests. Thus, most users will find these of limited use. 
 
 Interested users can access the BERTA shiny app at [https://fw-habitat-aep.shinyapps.io/BERTA/](https://fw-habitat-aep.shinyapps.io/BERTA/)
 
