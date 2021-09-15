@@ -1,7 +1,7 @@
 # Unveiling the recovery dynamics of Walleye following the Invisible Collapse
 This repository contains code to support assessing inland fisheries across landscapes as per Cahill et al. 202X. In particular, this directory contains Stan and R code to fit age-structured population dynamics models to fishery independent survey data collected from Alberta Walleye fisheries. 
 
-The relevant portions of this repository for individuals interested in the modeling approaches used in this manuscript are contained in the stan-files and r-files folders.  
+The relevant portions of this repository that describe the modeling approaches used in this manuscript are contained in the stan-files and r-files folders.  
 
 The primary .stan script is `BERTA_unveiling.stan`, which is the model script that conducts all our Bayesian analyses.  This .stan file is called and controlled by the `run.R` script in the r-files folder.  All assessment models were fitted to Alberta Fall Walleye Index Netting survey data using these two scripts.
 
