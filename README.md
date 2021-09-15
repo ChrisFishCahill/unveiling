@@ -8,6 +8,6 @@ The primary .stan script is `BERTA_unveiling.stan`, which is the model script th
 ## An additional FYI for users
 Please note that *all other folders and files* were used to develop the online BERTA Shiny application, develop plots and maps of relevant assessment quantities, process assessment output, or were used to conduct sensitivity tests specific to the Alberta Walleye fishery. Thus, most users will find these of limited use. 
 
-Interested users can access the BERTA shiny app at [https://fw-habitat-aep.shinyapps.io/BERTA/](https://fw-habitat-aep.shinyapps.io/BERTA/)
+Interested users can access the BERTA shiny app  [here](https://fw-habitat-aep.shinyapps.io/BERTA/)
 
 One final note of interest.  The second .stan file `BERTA_unveiling_depensation.stan` is an extension to the `BERTA_unveiling.stan` model described in our paper that also estimates a stock-recruit depensation parameter as per Hilborn and Walters (1992).  This model was not used in our manuscript but other researchers inquired about the potential of explicitly modeling depensation, and so we provide it here in the hopes that others find it useful. 
