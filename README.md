@@ -1,5 +1,5 @@
 # Unveiling the recovery dynamics of Walleye following the Invisible Collapse
-This repository contains code to support assessing inland fisheries across landscapes as per Cahill et al. 202X. In particular, this directory contains Stan and R code to fit age-structured population dynamics models to fishery independent survey data collected from Alberta Walleye fisheries. 
+This repository contains code to support assessing inland fisheries across landscapes as per Cahill et al. 2021. In particular, this directory contains Stan and R code to fit age-structured population dynamics models to fishery independent survey data collected from Alberta Walleye fisheries. 
 
 The relevant portions of this repository that describe the modeling approaches used in this manuscript are contained in the stan-files and r-files folders.  
 
