@@ -255,7 +255,7 @@ transformed parameters {
   
   //Calculate the preds vector
   //C(k,a,t)=N(a,t,k)*Nnet(k,t)Paged(k,t)*v_a(k,a) 
-  for(hack in 1:1){  //naughty hack to initialize j = 0
+ {  //initialize j = 0
     int j = 0; 
     for(i in 1:n_surveys){
       int k_idx = lake[i]; 
